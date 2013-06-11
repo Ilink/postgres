@@ -1711,6 +1711,18 @@ static struct config_int ConfigureNamesInt[] =
 	},
 
 	{
+		{"fastgin_mem", PGC_USERSET, RESOURCES_MEM,
+			gettext_noop("Sets the maximum memory to be used for fastgin operations."),
+			gettext_noop("This represents the maximum amount of space stored in "
+						 "the fasgin heap."),
+			GUC_UNIT_KB
+		},
+		&fastgin_mem,
+		128, 64, MAX_KILOBYTES,
+		NULL, NULL, NULL
+	},
+
+	{
 		{"maintenance_work_mem", PGC_USERSET, RESOURCES_MEM,
 			gettext_noop("Sets the maximum memory to be used for maintenance operations."),
 			gettext_noop("This includes operations such as VACUUM and CREATE INDEX."),
