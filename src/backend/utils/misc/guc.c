@@ -1711,13 +1711,13 @@ static struct config_int ConfigureNamesInt[] =
 	},
 
 	{
-		{"fastgin_mem", PGC_USERSET, RESOURCES_MEM,
+		{"gin_fast_limit", PGC_USERSET, RESOURCES_MEM,
 			gettext_noop("Sets the maximum memory to be used for fastgin operations."),
 			gettext_noop("This represents the maximum amount of space stored in "
-						 "the fasgin heap."),
+						 "the fastgin heap."),
 			GUC_UNIT_KB
 		},
-		&fastgin_mem,
+		&gin_fast_limit,
 		128, 64, MAX_KILOBYTES,
 		NULL, NULL, NULL
 	},

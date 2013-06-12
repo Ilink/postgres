@@ -99,7 +99,7 @@ int			CTimeZone = 0;
 bool		enableFsync = true;
 bool		allowSystemTableMods = false;
 int			work_mem = 1024;
-int			fastgin_mem = 128;
+int			gin_fast_limit = 128;
 int			maintenance_work_mem = 16384;
 
 /*
