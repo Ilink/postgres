@@ -46,7 +46,7 @@ typedef struct GinStatsData
 	int32		ginVersion;
 } GinStatsData;
 
-/* GUC parameter */
+/* GUC parameters */
 extern PGDLLIMPORT int GinFuzzySearchLimit;
 
 /* ginutil.c */

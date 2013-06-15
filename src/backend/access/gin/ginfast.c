@@ -28,6 +28,13 @@
 #define GIN_PAGE_FREESIZE \
 	( BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - MAXALIGN(sizeof(GinPageOpaqueData)) )
 
+#define GET_RELATION_LIMIT(relation) \
+	((relation)->rd_options ? \
+	 ((GinOptions *) (relation)->rd_options)->fastCacheSize : (-1))
+
+#define HAS_RELATION_LIMIT(relation) \
+	(GET_RELATION_LIMIT(relation) > -1)
+
 typedef struct KeyArray
 {
 	Datum	   *keys;			/* expansible array */
@@ -426,8 +433,18 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	 *
 	 * ginInsertCleanup() should not be called inside our CRIT_SECTION.
 	 */
-	if (metadata->nPendingPages * GIN_PAGE_FREESIZE > gin_fast_limit * 1024L)
+
+	if (HAS_RELATION_LIMIT(index))
+	{
+		if (metadata->nPendingPages * GIN_PAGE_FREESIZE > GET_RELATION_LIMIT(index) * 1024L)
+		{
+			needCleanup = true;
+		}
+	} 
+	else if (metadata->nPendingPages * GIN_PAGE_FREESIZE > gin_fast_limit * 1024L)
+	{
 		needCleanup = true;
+	}
 
 	UnlockReleaseBuffer(metabuffer);
 

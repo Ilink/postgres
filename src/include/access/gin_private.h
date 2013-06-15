@@ -262,13 +262,8 @@ typedef struct GinOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
+	int32		fastCacheSize;	/* cachesize - independent of work_mem */
 } GinOptions;
-
-#define GIN_DEFAULT_USE_FASTUPDATE	true
-#define GinGetUseFastUpdate(relation) \
-	((relation)->rd_options ? \
-	 ((GinOptions *) (relation)->rd_options)->useFastUpdate : GIN_DEFAULT_USE_FASTUPDATE)
-
 
 /* Macros for buffer lock/unlock operations */
 #define GIN_UNLOCK	BUFFER_LOCK_UNLOCK
@@ -443,6 +438,7 @@ extern int ginCompareAttEntries(GinState *ginstate,
 extern Datum *ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 				  Datum value, bool isNull,
 				  int32 *nentries, GinNullCategory **categories);
+extern bool GinGetUseFastUpdate(Relation relation);
 
 extern OffsetNumber gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple);
 extern Datum gintuple_get_key(GinState *ginstate, IndexTuple tuple,

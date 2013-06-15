@@ -355,6 +355,19 @@ CREATE [ UNIQUE ] INDEX [ CONCURRENTLY ] [ <replaceable class="parameter">name</
     </note>
     </listitem>
    </varlistentry>
+   <varlistentry>
+    <term><literal>FAST_CACHE_SIZE</></term>
+    <listitem>
+    <para>
+     This setting controls the size of the fast update cache described in
+     <xref linkend="gin-fast-update">. The parameter describes the size (in kB)
+     of the fast update cache. A value of -1 indicates that the index will 
+     use the current global size (<literal>gin_fast_limit</>). However, if the
+     value is above -1, the index-specific value will be used.
+     The default is <literal>-1</>.
+    </para>
+    </listitem>
+   </varlistentry>
    </variablelist>
   </refsect2>
 

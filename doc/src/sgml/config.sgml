@@ -1162,7 +1162,7 @@ include 'filename'
       </listitem>
      </varlistentry>
 
-     <varlistentry id="guc-fastgin-mem" xreflabel="gin_fast_limit">
+     <varlistentry id="guc-gin-fast-limit" xreflabel="gin_fast_limit">
       <term><varname>gin_fast_limit</varname> (<type>integer</type>)</term>
       <indexterm>
        <primary><varname>gin_fast_limit</> configuration parameter</primary>
@@ -1172,7 +1172,8 @@ include 'filename'
         Specifies the amount of memory to be used by the fastgin cache before writing
         to the GIN index itself. The value defaults to <literal>128kB</literal>.
         The fastgin cache is more effective when it is small. The size of <varname>gin_fast_limit</varname>
-        should be kept significantly lower than <varname>work_mem</varname>.
+        should be kept significantly lower than <varname>work_mem</varname>. A value of 0 will turn off 
+        the cache entirely. This global can be overridden by the index setting <varname>fast_cache_size</varname>.
        </para>
       </listitem>
      </varlistentry>

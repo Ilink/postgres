@@ -501,7 +501,8 @@ ginoptions(PG_FUNCTION_ARGS)
 	GinOptions *rdopts;
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
-		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(GinOptions, useFastUpdate)}
+		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(GinOptions, useFastUpdate)},
+		{"fast_cache_size", RELOPT_TYPE_INT, offsetof(GinOptions, fastCacheSize)}
 	};
 
 	options = parseRelOptions(reloptions, validate, RELOPT_KIND_GIN,
@@ -598,4 +599,42 @@ ginUpdateStats(Relation index, const GinStatsData *stats)
 	UnlockReleaseBuffer(metabuffer);
 
 	END_CRIT_SECTION();
+}
+
+/*
+ * Used to check if the gin fast cache should be used.
+ * Use the gin_fast_limit global to turn off the cache entirely.
+ * The per-index sizes will kick in if the user has set a size and enabled fastCacheSize
+ */
+bool
+GinGetUseFastUpdate(Relation relation)
+{
+	if((relation)->rd_options)
+	{
+		if( ((GinOptions *) (relation)->rd_options)->fastCacheSize > 0
+			&& ((GinOptions *) (relation)->rd_options)->useFastUpdate)
+		{
+			return true;
+		} 
+		else if(!((GinOptions *) (relation)->rd_options)->useFastUpdate)
+		{
+			return false;
+		}
+		else if(gin_fast_limit > 0)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	} 
+	else if(gin_fast_limit > 0)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }

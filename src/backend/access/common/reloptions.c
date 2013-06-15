@@ -177,6 +177,13 @@ static relopt_int intRelOpts[] =
 			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST
 		}, -1, 0, 2000000000
 	},
+	{
+		{
+			"fast_cache_size",
+			"Size of the fast gin cache, in kB",
+			RELOPT_KIND_GIN
+		}, -1, 0, INT_MAX
+	},
 	/* list terminator */
 	{{NULL}}
 };
