@@ -11,6 +11,7 @@
 
 #include "variables.h"
 #include "print.h"
+#include "ans.h"
 
 #define DEFAULT_FIELD_SEP "|"
 #define DEFAULT_RECORD_SEP "\n"
@@ -93,6 +94,9 @@ typedef struct _psqlSettings
 	FILE	   *logfile;		/* session log file handle */
 
 	VariableSpace vars;			/* "shell variable" repository */
+	
+	AnsHistory	ans;			/* query result (answer) history.*/
+	bool		ans_enabled;	/* local query result storage enabled */
 
 	/*
 	 * The remaining fields are set by assign hooks associated with entries in

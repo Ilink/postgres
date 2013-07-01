@@ -322,6 +322,7 @@ DATA(insert OID = 172 (  int24div		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 2
 DATA(insert OID = 173 (  int42div		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 21" _null_ _null_ _null_ _null_ int42div _null_ _null_ _null_ ));
 DATA(insert OID = 176 (  int2pl			   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 21 "21 21" _null_ _null_ _null_ _null_ int2pl _null_ _null_ _null_ ));
 DATA(insert OID = 177 (  int4pl			   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ int4pl _null_ _null_ _null_ ));
+DATA(insert OID = 3474 (  int4offset			   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ int4offset _null_ _null_ _null_ ));
 DATA(insert OID = 178 (  int24pl		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "21 23" _null_ _null_ _null_ _null_ int24pl _null_ _null_ _null_ ));
 DATA(insert OID = 179 (  int42pl		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 21" _null_ _null_ _null_ _null_ int42pl _null_ _null_ _null_ ));
 DATA(insert OID = 180 (  int2mi			   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 21 "21 21" _null_ _null_ _null_ _null_ int2mi _null_ _null_ _null_ ));

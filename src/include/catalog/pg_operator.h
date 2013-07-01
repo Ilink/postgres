@@ -329,6 +329,8 @@ DATA(insert OID = 550 (  "+"	   PGNSP PGUID b f f	21	21	21 550	 0 int2pl - - ));
 DESCR("add");
 DATA(insert OID = 551 (  "+"	   PGNSP PGUID b f f	23	23	23 551	 0 int4pl - - ));
 DESCR("add");
+DATA(insert OID = 3968 ( "@+"	   PGNSP PGUID b f f	23	23	23   0   0 int4offset - - ));
+DESCR("positive offset");
 DATA(insert OID = 552 (  "+"	   PGNSP PGUID b f f	21	23	23 553	 0 int24pl - - ));
 DESCR("add");
 DATA(insert OID = 553 (  "+"	   PGNSP PGUID b f f	23	21	23 552	 0 int42pl - - ));

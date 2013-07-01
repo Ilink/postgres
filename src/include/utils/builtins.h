@@ -218,6 +218,7 @@ extern Datum int42ge(PG_FUNCTION_ARGS);
 extern Datum int4um(PG_FUNCTION_ARGS);
 extern Datum int4up(PG_FUNCTION_ARGS);
 extern Datum int4pl(PG_FUNCTION_ARGS);
+extern Datum int4offset(PG_FUNCTION_ARGS);
 extern Datum int4mi(PG_FUNCTION_ARGS);
 extern Datum int4mul(PG_FUNCTION_ARGS);
 extern Datum int4div(PG_FUNCTION_ARGS);
