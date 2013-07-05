@@ -580,6 +580,8 @@ DATA(insert OID = 3129 ( btint2sortsupport PGNSP PGUID 12 1 0 0 0 f f f f t f i 
 DESCR("sort support");
 DATA(insert OID = 351 (  btint4cmp		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4cmp _null_ _null_ _null_ ));
 DESCR("less-equal-greater");
+DATA(insert OID = 352 (  btint4posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4posoffset _null_ _null_ _null_ ));
+DESCR("less-equal-greater");
 DATA(insert OID = 3130 ( btint4sortsupport PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 2278 "2281" _null_ _null_ _null_ _null_ btint4sortsupport _null_ _null_ _null_ ));
 DESCR("sort support");
 DATA(insert OID = 842 (  btint8cmp		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "20 20" _null_ _null_ _null_ _null_ btint8cmp _null_ _null_ _null_ ));
