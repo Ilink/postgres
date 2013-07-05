@@ -102,42 +102,6 @@ btint4cmp(PG_FUNCTION_ARGS)
 		PG_RETURN_INT32(-1);
 }
 
-Datum
-btint4posoffset(PG_FUNCTION_ARGS)
-{
-	// int32		a = PG_GETARG_INT32(0);
-	// int32		b = PG_GETARG_INT32(1);
-
-	// if (a > b)
-	// 	PG_RETURN_INT32(1);
-	// else if (a == b)
-	// 	PG_RETURN_INT32(0);
-	// else
-	// 	PG_RETURN_INT32(-1);
-
-	// PG_RETURN_INT32(a+b);
-
-	int32		arg1 = PG_GETARG_INT32(0);
-	int32		arg2 = PG_GETARG_INT32(1);
-	int32		result;
-
-	result = arg1 + arg2;
-	// result = 961;
-
-	/*
-	 * Overflow check.	If the inputs are of different signs then their sum
-	 * cannot overflow.  If the inputs are of the same sign, their sum had
-	 * better be that sign too.
-	 */
-	// if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-	// 	ereport(ERROR,
-	// 			(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-	// 			 errmsg("integer out of range")));
-
-	elog(NOTICE, "btint4posoffset result: %i from arg1: %i, arg2: %i", result, arg1, arg2);
-	PG_RETURN_INT32(result);
-}
-
 static int
 btint4fastcmp(Datum x, Datum y, SortSupport ssup)
 {
