@@ -379,6 +379,7 @@ typedef enum NodeTag
 	T_TypeCast,
 	T_CollateClause,
 	T_SortBy,
+	T_WindowFrameDef,
 	T_WindowDef,
 	T_RangeSubselect,
 	T_RangeFunction,

@@ -14,6 +14,7 @@
 #ifndef EXECNODES_H
 #define EXECNODES_H
 
+#include "windowapi.h"
 #include "access/genam.h"
 #include "access/heapam.h"
 #include "executor/instrument.h"
@@ -1741,6 +1742,13 @@ typedef struct WindowAggState
 	Datum		startOffsetValue;		/* result of startOffset evaluation */
 	Datum		endOffsetValue; /* result of endOffset evaluation */
 
+	/* RANGE only */
+	// NOTE: change the comments here to reflect the new support functions
+	FmgrInfo	startOffsetFn;	/* "+"/"-" operator function for start */
+	FmgrInfo	endOffsetFn;	/* "+"/"-" operator function for end */
+	FmgrInfo	startCmpFn;		/* compare function for start bound */
+ 	FmgrInfo	endCmpFn;		/* compare function for end bound */
+
 	MemoryContext partcontext;	/* context for partition-lifespan data */
 	MemoryContext aggcontext;	/* context for each aggregate data */
 	ExprContext *tmpcontext;	/* short-term evaluation context */
@@ -1756,6 +1764,7 @@ typedef struct WindowAggState
 								 * for current row */
 	bool		frametail_valid;/* true if frametailpos is known up to date
 								 * for current row */
+	bool		frametail_stable;	/* frame's tail doesn't move */
 
 	TupleTableSlot *first_part_slot;	/* first tuple of current or next
 										 * partition */

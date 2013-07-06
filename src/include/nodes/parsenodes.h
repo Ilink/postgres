@@ -393,6 +393,18 @@ typedef struct SortBy
 } SortBy;
 
 /*
+ * WindowFrameDef - for FRAME clause description in WINDOW definition
+ */
+typedef struct WindowFrameDef
+{
+	NodeTag		type;
+	int			options;		/* frame_clause options, see below */
+	Node	   *startOffset;	/* how far is the starting bound */
+	Node	   *endOffset;		/* how far is the ending bound */
+	int			location;		/* parse location, or -1 if none/unknown */
+} WindowFrameDef;
+
+/*
  * WindowDef - raw representation of WINDOW and OVER clauses
  *
  * For entries in a WINDOW list, "name" is the window name being defined.
@@ -402,6 +414,8 @@ typedef struct SortBy
  */
 typedef struct WindowDef
 {
+	// NOTE: does this still need this?
+	// WindowFrameDef *frame;		/* FRAME clause including boundary values */
 	NodeTag		type;
 	char	   *name;			/* window's own name */
 	char	   *refname;		/* referenced window name, if any */
@@ -869,6 +883,13 @@ typedef struct WindowClause
 	int			frameOptions;	/* frame_clause options, see WindowDef */
 	Node	   *startOffset;	/* expression for starting bound, if any */
 	Node	   *endOffset;		/* expression for ending bound, if any */
+	// + 	Node	   *startOffset;	/* offset value to start frame */
+	// + 	Node	   *endOffset;		/* offset value to end frame */
+	Oid			startOp;		/* operator to calculate start bound */
+	Oid			endOp;			/* operator to calculate end bound */
+	Oid			startCmp;		/* compare function for start bound */
+	Oid			endCmp;			/* compare function for end bound */
+
 	Index		winref;			/* ID referenced by window functions */
 	bool		copiedOrder;	/* did we copy orderClause from refname? */
 } WindowClause;

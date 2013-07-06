@@ -58,6 +58,8 @@ extern Oid	compatible_oper_opid(List *op, Oid arg1, Oid arg2, bool noError);
 extern Oid	oprid(Operator op);
 extern Oid	oprfuncid(Operator op);
 
+extern Oid	opr_restype_byid(Oid operid);
+
 /* Build expression tree for an operator invocation */
 extern Expr *make_op(ParseState *pstate, List *opname,
 		Node *ltree, Node *rtree, int location);

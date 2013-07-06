@@ -807,6 +807,10 @@ _copyWindowAgg(const WindowAgg *from)
 	{
 		COPY_POINTER_FIELD(ordColIdx, from->ordNumCols * sizeof(AttrNumber));
 		COPY_POINTER_FIELD(ordOperators, from->ordNumCols * sizeof(Oid));
+		COPY_SCALAR_FIELD(startOp);
+		COPY_SCALAR_FIELD(endOp);
+		COPY_SCALAR_FIELD(startCmp);
+		COPY_SCALAR_FIELD(endCmp);
 	}
 	COPY_SCALAR_FIELD(frameOptions);
 	COPY_NODE_FIELD(startOffset);
@@ -2025,6 +2029,8 @@ _copyWindowClause(const WindowClause *from)
 	COPY_NODE_FIELD(partitionClause);
 	COPY_NODE_FIELD(orderClause);
 	COPY_SCALAR_FIELD(frameOptions);
+	// NOTE: Not sure if this is correct anymore
+	// COPY_NODE_FIELD(frame);
 	COPY_NODE_FIELD(startOffset);
 	COPY_NODE_FIELD(endOffset);
 	COPY_SCALAR_FIELD(winref);
@@ -2241,6 +2247,19 @@ _copySortBy(const SortBy *from)
 	COPY_SCALAR_FIELD(sortby_dir);
 	COPY_SCALAR_FIELD(sortby_nulls);
 	COPY_NODE_FIELD(useOp);
+	COPY_LOCATION_FIELD(location);
+
+	return newnode;
+}
+
+static WindowFrameDef *
+_copyWindowFrameDef(WindowFrameDef *from)
+{
+	WindowFrameDef *newnode = makeNode(WindowFrameDef);
+
+	COPY_SCALAR_FIELD(options);
+	COPY_NODE_FIELD(startOffset);
+	COPY_NODE_FIELD(endOffset);
 	COPY_LOCATION_FIELD(location);
 
 	return newnode;
@@ -4482,6 +4501,9 @@ copyObject(const void *from)
 			break;
 		case T_SortBy:
 			retval = _copySortBy(from);
+			break;
+		case T_WindowFrameDef:
+			retval = _copyWindowFrameDef(from);
 			break;
 		case T_WindowDef:
 			retval = _copyWindowDef(from);

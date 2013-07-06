@@ -16,6 +16,7 @@
 #include "catalog/namespace.h"
 #include "catalog/pg_type.h"
 #include "commands/trigger.h"
+#include "executor/nodeAgg.h"
 #include "tsearch/ts_utils.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
@@ -414,9 +415,13 @@ tsa_rewrite_accum(PG_FUNCTION_ARGS)
 	int			nelemsp;
 	MemoryContext aggcontext;
 	MemoryContext oldcontext;
+	bool		iswindowagg;
 
-	if (!AggCheckCallContext(fcinfo, &aggcontext))
+	aggcontext = AggGetMemoryContext((Node *) fcinfo->context, &iswindowagg);
+	if (!aggcontext)
+	{
 		elog(ERROR, "tsa_rewrite_accum called in non-aggregate context");
+	}
 
 	if (PG_ARGISNULL(0) || PG_GETARG_POINTER(0) == NULL)
 	{

@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#include "access/nbtree.h"
 #include "catalog/heap.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
@@ -82,8 +83,11 @@ static List *addTargetToGroupList(ParseState *pstate, TargetEntry *tle,
 					 List *grouplist, List *targetlist, int location,
 					 bool resolveUnknown);
 static WindowClause *findWindowClause(List *wclist, const char *name);
-static Node *transformFrameOffset(ParseState *pstate, int frameOptions,
-					 Node *clause);
+// static Node *transformFrameOffset(ParseState *pstate, int frameOptions,
+// 					 Node *clause);
+static Node *transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
+					 bool is_start, List *targetlist, List *orderClause,
+					 Oid *opoid, Oid *cmpoid, int location);
 
 
 /*
@@ -1786,10 +1790,27 @@ transformWindowDefinitions(ParseState *pstate,
 					 parser_errposition(pstate, windef->location)));
 		wc->frameOptions = windef->frameOptions;
 		/* Process frame offset expressions */
+		// wc->startOffset = transformFrameOffset(pstate, wc->frameOptions,
+		// 									   windef->startOffset);
+
 		wc->startOffset = transformFrameOffset(pstate, wc->frameOptions,
-											   windef->startOffset);
+											   windef->startOffset,
+											   true,
+											   *targetlist,
+											   wc->orderClause,
+											   &wc->startOp,
+											   &wc->startCmp,
+											   windef->location);
+		// wc->endOffset = transformFrameOffset(pstate, wc->frameOptions,
+		// 									 windef->endOffset);
 		wc->endOffset = transformFrameOffset(pstate, wc->frameOptions,
-											 windef->endOffset);
+											 windef->endOffset,
+											 false,
+											 *targetlist,
+											 wc->orderClause,
+											 &wc->endOp,
+											 &wc->endCmp,
+											 windef->location);
 		wc->winref = winref;
 
 		result = lappend(result, wc);
@@ -2307,51 +2328,278 @@ findWindowClause(List *wclist, const char *name)
 }
 
 /*
+ * checkExprIsLevelStable
+ *		Check if given expr is stable value in the current query level.
+ *		This check prevent use of any local vars, aggregates or window
+ *		functions in the expression.
+ */
+// static void
+// checkExprIsLevelStable(ParseState *pstate, Node *n,
+// 					   const char *constructName)
+// {
+// 	if (contain_vars_of_level(n, 0))
+// 	{
+// 		ereport(ERROR,
+// 				(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
+// 		/* translator: %s is name of a SQL construct, eg LIMIT */
+// 				 errmsg("argument of %s must not contain variables",
+// 						constructName),
+// 				 parser_errposition(pstate,
+// 									locate_var_of_level(n, 0))));
+// 	}
+// 	if (pstate->p_hasAggs &&
+// 		checkExprHasAggs(n))
+// 	{
+// 		ereport(ERROR,
+// 				(errcode(ERRCODE_GROUPING_ERROR),
+// 		 translator: %s is name of a SQL construct, eg LIMIT 
+// 				 errmsg("argument of %s must not contain aggregate functions",
+// 						constructName),
+// 				 parser_errposition(pstate,
+// 									locate_agg_of_level(n, 0))));
+// 	}
+// 	if (pstate->p_hasWindowFuncs &&
+// 		checkExprHasWindowFuncs(n))
+// 	{
+// 		ereport(ERROR,
+// 				(errcode(ERRCODE_WINDOWING_ERROR),
+// 		/* translator: %s is name of a SQL construct, eg LIMIT */
+// 				 errmsg("argument of %s must not contain window functions",
+// 						constructName),
+// 				 parser_errposition(pstate,
+// 									locate_windowfunc(n))));
+// 	}
+// }
+
+/*
  * transformFrameOffset
  *		Process a window frame offset expression
  */
-static Node *
-transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause)
-{
-	const char *constructName = NULL;
-	Node	   *node;
+// static Node *
+// transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause)
+// {
+// 	const char *constructName = NULL;
+// 	Node	   *node;
 
-	/* Quick exit if no offset expression */
+// 	/* Quick exit if no offset expression */
+// 	if (clause == NULL)
+// 		return NULL;
+
+// 	if (frameOptions & FRAMEOPTION_ROWS)
+// 	{
+// 		/* Transform the raw expression tree */
+// 		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_ROWS);
+
+// 		/*
+// 		 * Like LIMIT clause, simply coerce to int8
+// 		 */
+// 		constructName = "ROWS";
+// 		node = coerce_to_specific_type(pstate, node, INT8OID, constructName);
+// 	}
+// 	else if (frameOptions & FRAMEOPTION_RANGE)
+// 	{
+// 		/* Transform the raw expression tree */
+// 		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_RANGE);
+
+// 		/*
+// 		 * this needs a lot of thought to decide how to support in the context
+// 		 * of Postgres' extensible datatype framework
+// 		 */
+// 		constructName = "RANGE";
+// 		/* error was already thrown by gram.y, this is just a backstop */
+// 		elog(ERROR, "window frame with value offset is not implemented");
+// 	}
+// 	else
+// 	{
+// 		Assert(false);
+// 		node = NULL;
+// 	}
+
+// 	/* Disallow variables in frame offsets */
+// 	checkExprIsVarFree(pstate, node, constructName);
+
+// 	return node;
+// }
+
+/*
+ *	transformFrameOffset
+ *
+ * In ROWS mode, frame offset value is coerced to int8 like LIMIT/OFFSET.
+ * In RANGE mode, operators for "+" and "-" are searched, as offset value
+ * is added to or subtracted from the single sort key in ORDR BY to
+ * calculate frame bound. Which operator should be used is depending on
+ * what type the frame caluse is specified with.
+ */
+static Node *
+transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
+					 bool is_start, List *targetlist, List *orderClause,
+					 Oid *opoid, Oid *cmpoid, int location)
+{
+	Node	   *node;
+	const char *constructName = is_start ?
+								"Frame Start Offset" : "Fame End Offset";
+
 	if (clause == NULL)
 		return NULL;
 
+	node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_RANGE);
 	if (frameOptions & FRAMEOPTION_ROWS)
 	{
-		/* Transform the raw expression tree */
-		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_ROWS);
-
 		/*
-		 * Like LIMIT clause, simply coerce to int8
+		 * Like LIMIT clause, simply coerce int8
 		 */
-		constructName = "ROWS";
 		node = coerce_to_specific_type(pstate, node, INT8OID, constructName);
-	}
-	else if (frameOptions & FRAMEOPTION_RANGE)
-	{
-		/* Transform the raw expression tree */
-		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_RANGE);
-
-		/*
-		 * this needs a lot of thought to decide how to support in the context
-		 * of Postgres' extensible datatype framework
-		 */
-		constructName = "RANGE";
-		/* error was already thrown by gram.y, this is just a backstop */
-		elog(ERROR, "window frame with value offset is not implemented");
 	}
 	else
 	{
-		Assert(false);
-		node = NULL;
+		SortGroupClause	   *sort;
+		TargetEntry		   *sort_tle;
+		Oid					cmpfunc;
+		bool				reverse;
+		Oid					restype;
+		char			   *oper;
+
+		Assert(frameOptions & FRAMEOPTION_RANGE);
+
+		/*
+		 * In the spec capter 7.11, syntax rule 11) a) ii), window descriptor
+		 * shall have single sort key when PRECEDING or FOLLOWING value
+		 * is specified.
+		 */
+		if (list_length(orderClause) != 1)
+			ereport(ERROR,
+					(errcode(ERRCODE_WINDOWING_ERROR),
+					errmsg("RANGE frame with offset must have single sort key"),
+					parser_errposition(pstate, location)));
+
+		sort = (SortGroupClause *) linitial(orderClause);
+		sort_tle = get_sortgroupref_tle(sort->tleSortGroupRef, targetlist);
+		restype = exprType((Node *) sort_tle->expr);
+		/*
+		 * RANGE mode has interest only in if it's reverse or not.
+		 */
+		 // NOTE: this function no longer exists
+		// if(!get_compare_function_for_ordering_op(sort->sortop,
+		// 										 &cmpfunc,
+		// 										 &reverse))
+		// 	elog(ERROR, "operator %u is not a valid ordering operator",
+		// 		 sort->sortop);
+
+		/*
+		 * Since we don't have general definition for "addition" and
+		 * "subtraction" such like "greater" and "lesser" in btree,
+		 * just find "+" / "-" by string in default namespace.
+		 * But this compromise makes sense in many cases.
+		 */
+		if (!reverse)
+		{
+			/*
+			 * In forward, PRECEDING bound needs substraction while
+			 * FOLLOWING bound needs addition.
+			 */
+			if (is_start)
+			{
+				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING)
+					oper = "-";
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					oper = "+";
+				else
+				{
+					Assert(false);
+					oper = NULL; /* keep compiler quiet */
+				}
+			}
+			else
+			{
+				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING)
+					oper = "-";
+				else if (frameOptions & FRAMEOPTION_END_VALUE_FOLLOWING)
+					oper = "+";
+				else
+				{
+					Assert(false);
+					oper = NULL; /* keep compiler quiet */
+				}
+			}
+		}
+		else
+		{
+			/*
+			 * In backward, PRECEDING needs addition while
+			 * FOLLOWING needs substraction
+			 */
+			if (is_start)
+			{
+				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING)
+					oper = "+";
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					oper = "-";
+				else
+				{
+					Assert(false);
+					oper = NULL; /* keep compiler quiet */
+				}
+			}
+			else
+			{
+				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING)
+					oper = "+";
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					oper = "-";
+				else
+				{
+					Assert(false);
+					oper = NULL; /* keep compiler quiet */
+				}
+			}
+		}
+
+		/*
+		 * find the operator "+" or "-" for these data types
+		 */
+		*opoid = LookupOperName(pstate, list_make1(makeString(oper)),
+								restype, exprType(node), false, location);
+
+		*cmpoid = InvalidOid;
+
+		/*
+		 * Find compare function between sort key type and offset type
+		 * because the result bound type may be changed after
+		 * adding/subtracting offset value.
+		 */
+		if (OidIsValid(*opoid))
+		{
+			Oid		oper_restype;
+			Oid		opfamily;
+			Oid		opcintype;
+			int16	strategy;
+
+			oper_restype = opr_restype_byid(*opoid);
+			if (!OidIsValid(oper_restype))		/* should not happen */
+				elog(ERROR, "missing result type for %u", oper_restype);
+
+			/*
+			 * Find cmpare function by opfamily of sort operator.
+			 */
+			if (get_ordering_op_properties(sort->sortop,
+										   &opfamily, &opcintype, &strategy))
+			{
+				*cmpoid = get_opfamily_proc(opfamily,
+											restype,
+											oper_restype,
+											BTORDER_PROC);
+			}
+		}
+		if (!OidIsValid(*cmpoid))
+			ereport(ERROR,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					errmsg("cannot compare sort key type and offset type in frame"),
+					parser_errposition(pstate, location)));
 	}
 
-	/* Disallow variables in frame offsets */
-	checkExprIsVarFree(pstate, node, constructName);
+	// checkExprIsLevelStable(pstate, node, constructName);
 
 	return node;
 }
+
+

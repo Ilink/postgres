@@ -253,6 +253,28 @@ oprfuncid(Operator op)
 	return pgopform->oprcode;
 }
 
+/* given operator oid, return result type oid */
+Oid
+opr_restype_byid(Oid operid)
+{
+	HeapTuple	tup;
+	Form_pg_operator opform;
+	Oid			restype;
+
+	tup = SearchSysCache(OPEROID,
+						 ObjectIdGetDatum(operid),
+						 0, 0, 0);
+	if (HeapTupleIsValid(tup))
+	{
+		opform = (Form_pg_operator) GETSTRUCT(tup);
+		restype = opform->oprresult;
+	}
+	else
+		restype = InvalidOid;
+	ReleaseSysCache(tup);
+
+	return restype;
+}
 
 /* binary_oper_exact()
  * Check for an "exact" match to the specified operand types.

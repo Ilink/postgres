@@ -680,6 +680,10 @@ _outWindowAgg(StringInfo str, const WindowAgg *node)
 	WRITE_INT_FIELD(frameOptions);
 	WRITE_NODE_FIELD(startOffset);
 	WRITE_NODE_FIELD(endOffset);
+	WRITE_UINT_FIELD(startOp);
+	WRITE_UINT_FIELD(endOp);
+	WRITE_UINT_FIELD(startCmp);
+	WRITE_UINT_FIELD(endCmp);
 }
 
 static void
@@ -2281,6 +2285,10 @@ _outWindowClause(StringInfo str, const WindowClause *node)
 	WRITE_INT_FIELD(frameOptions);
 	WRITE_NODE_FIELD(startOffset);
 	WRITE_NODE_FIELD(endOffset);
+	WRITE_UINT_FIELD(startOp);
+	WRITE_UINT_FIELD(endOp);
+	WRITE_UINT_FIELD(startCmp);
+	WRITE_UINT_FIELD(endCmp);
 	WRITE_UINT_FIELD(winref);
 	WRITE_BOOL_FIELD(copiedOrder);
 }
@@ -2570,6 +2578,16 @@ _outSortBy(StringInfo str, const SortBy *node)
 }
 
 static void
+_outWindowFrameDef(StringInfo str, WindowFrameDef *node)
+{
+	WRITE_NODE_TYPE("WINDOWFRAMEDEF");
+
+	WRITE_INT_FIELD(options);
+	WRITE_NODE_FIELD(startOffset);
+	WRITE_NODE_FIELD(endOffset);
+}
+
+static void
 _outWindowDef(StringInfo str, const WindowDef *node)
 {
 	WRITE_NODE_TYPE("WINDOWDEF");
@@ -2579,6 +2597,8 @@ _outWindowDef(StringInfo str, const WindowDef *node)
 	WRITE_NODE_FIELD(partitionClause);
 	WRITE_NODE_FIELD(orderClause);
 	WRITE_INT_FIELD(frameOptions);
+	// NOTE: is this correct?
+	// WRITE_NODE_FIELD(frame);
 	WRITE_NODE_FIELD(startOffset);
 	WRITE_NODE_FIELD(endOffset);
 	WRITE_LOCATION_FIELD(location);
@@ -3161,6 +3181,9 @@ _outNode(StringInfo str, const void *obj)
 				break;
 			case T_SortBy:
 				_outSortBy(str, obj);
+				break;
+			case T_WindowFrameDef:
+				_outWindowFrameDef(str, obj);
 				break;
 			case T_WindowDef:
 				_outWindowDef(str, obj);

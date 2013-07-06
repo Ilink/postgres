@@ -477,6 +477,19 @@ eval_windowaggregates(WindowAggState *winstate)
 		 * If we created a mark pointer for aggregates, keep it pushed up to
 		 * frame head, so that tuplestore can discard unnecessary rows.
 		 */
+
+		 // NOTE: i think this code was buggy and got updated
+		 // + 		if (agg_winobj->markptr > 0)
+		 // + 		{
+		 // + 			if (winstate->frameheadpos < winstate->currentpos)
+		 // + 				WinSetMarkPosition(agg_winobj, winstate->frameheadpos - 1);
+		 // + 
+		 // + 			/*
+		 // + 			 * Discard current state, so that subsequent loop starts with null slot
+		 // + 			 */
+		 // + 			if (!TupIsNull(agg_row_slot))
+		 // + 				ExecClearTuple(agg_row_slot);
+
 		if (agg_winobj->markptr >= 0)
 			WinSetMarkPosition(agg_winobj, winstate->frameheadpos);
 
@@ -495,6 +508,15 @@ eval_windowaggregates(WindowAggState *winstate)
 	 * advanced past the place we'd aggregated up to.  Check for these cases
 	 * and if so, reuse the saved result values.
 	 */
+	 // NOTE: i think this code was buggy and got updated
+	 	/*
+	  	 * If we've already aggregated up through current row and frame covers
+	  	 * current row, reuse the saved result values. NOTE: this test should get
+	  	 * more efficient in some framing modes.
+	  	 */
+	 // ! 	if (winstate->frametail_stable &&
+	 // ! 		winstate->aggregatedbase <= winstate->currentpos &&
+	 // ! 		winstate->aggregatedupto > winstate->currentpos)
 	if ((winstate->frameOptions & (FRAMEOPTION_END_UNBOUNDED_FOLLOWING |
 								   FRAMEOPTION_END_CURRENT_ROW)) &&
 		winstate->aggregatedbase <= winstate->currentpos &&
@@ -872,11 +894,19 @@ release_partition(WindowAggState *winstate)
  * The caller must have already determined that the row is in the partition
  * and fetched it into a slot.	This function just encapsulates the framing
  * rules.
+ *
+ * In RANGE offset mode, even if current +/- offset value overflows
+ * (especially with temporal data types) it shall not raise an error,
+ * according to the spec. But as there's not such mechanism (to ignore
+ * overflowed value), we raise an error in such case, but it seems reasonable
+ * because it is trivial corner case.
  */
 static bool
 row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 {
 	int			frameOptions = winstate->frameOptions;
+	// NOTE: i think that this was taken out because it's not logic that should be here?
+	WindowAgg  *node = (WindowAgg *) winstate->ss.ps.plan;
 
 	Assert(pos >= 0);			/* else caller error */
 
@@ -914,12 +944,75 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
+			elog(NOTICE, "first thing @ 947");
+			Datum	current, target;
+			bool	current_isnull, target_isnull;
+			bool	reverse = node->offsetSortReverse;
+
+			/*
+			 * In RANGE mode, sort key must be single value.
+			 * Note this assumption is checked in parsing.
+			 */
+			Assert(node->offsetSortColIdx > 0);
+
+			current = slot_getattr(winstate->ss.ss_ScanTupleSlot,
+								   node->offsetSortColIdx, &current_isnull);
+			target = slot_getattr(slot, node->offsetSortColIdx, &target_isnull);
+			/*
+			 * bound test only if either value is not null.
+			 */
+			if (!current_isnull && !target_isnull)
+			{
+				Datum		bound;
+				int			cmp;
+
+				/* bound = current +/- offset */
+				bound = FunctionCall2(&winstate->startOffsetFn,
+									  current, winstate->startOffsetValue);
+				/* bound <=> target */
+				cmp = DatumGetInt32(FunctionCall2(&winstate->startCmpFn,
+												  target, bound));
+				if (reverse)
+					cmp = -cmp;
+				if (cmp < 0)
+					return false;
+
+			}
+			else if (!current_isnull)
+			{
+				/*
+				 * If current IS NOT NULL and target IS NULL
+				 * and when NULLS FIRST is specified or implied,
+				 * the target must be upper than current and
+				 * it'sout of frame.
+				 */
+				if (node->offsetNullsFirst)
+					return false;
+			}
+			else if (!target_isnull)
+			{
+				/*
+				 * If current IS NULL and target IS NOT NULL
+				 * and when NULLS LAST is specified or implied,
+				 * the target must be upper than current and
+				 * its' out of frame.
+				 */
+				if (!node->offsetNullsFirst)
+					return false;
+			}
+			/* if both of current and target are null, then they are peers */
+
 			/* parser should have rejected this */
-			elog(ERROR, "window frame with value offset is not implemented");
+			// elog(ERROR, "window frame with value offset is not implemented");
 		}
 		else
 			Assert(false);
 	}
+
+	// NOTE: need this?
+	/* In UNBOUNDED FOLLOWING mode, all partition rows are in frame */
+	// if (frameOptions & FRAMEOPTION_END_UNBOUNDED_FOLLOWING)
+	// 	return true;
 
 	/* Okay so far, now check frame ending conditions */
 	if (frameOptions & FRAMEOPTION_END_CURRENT_ROW)
@@ -955,8 +1048,56 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
+			elog(NOTICE, "second thing @ 1051");
+
+			Datum	current, target;
+			bool	current_isnull, target_isnull;
+			bool	reverse = node->offsetSortReverse;
+
+			/*
+			 * In RANGE mode, sort key must be single value.
+			 * Note this assumption is checked in parsing.
+			 */
+			Assert(node->offsetSortColIdx > 0);
+
+			current = slot_getattr(winstate->ss.ss_ScanTupleSlot,
+								   node->offsetSortColIdx, &current_isnull);
+			target = slot_getattr(slot, node->offsetSortColIdx, &target_isnull);
+			if (!current_isnull && !target_isnull)
+			{
+				Datum		bound;
+				int			cmp;
+
+				/* bound = current +/- offset */
+				bound = FunctionCall2(&winstate->endOffsetFn,
+									  current, winstate->endOffsetValue);
+				/* bound <=> target */
+				cmp = DatumGetInt32(FunctionCall2(&winstate->endCmpFn,
+												  target, bound));
+				if (reverse)
+					cmp = -cmp;
+				return cmp <= 0;
+			}
+			/*
+			 * If current IS NOT NULL and target IS NULL,
+			 * and when NULLS FIRST is specified or implied,
+			 * then target must be upper than current and it's in frame.
+			 */
+			else if(!current_isnull)
+				return node->offsetNullsFirst;
+			/*
+			 * If current IS NULL and target IS NOT NULL,
+			 * and when NULLS LAST is specified or implied,
+			 * then target must be upper than current and it's in frame.
+			 */
+			else if(!target_isnull)
+				return !node->offsetNullsFirst;
+
+			/* if both of current and target are null, then they are peers */
+ 			return true;
+
 			/* parser should have rejected this */
-			elog(ERROR, "window frame with value offset is not implemented");
+			// elog(ERROR, "window frame with value offset is not implemented");
 		}
 		else
 			Assert(false);
@@ -1001,6 +1142,8 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
+			elog(NOTICE, "third thing @ 1145");
+
 			int64		fhprev;
 
 			/* If no ORDER BY, all rows are peers with each other */
@@ -1061,9 +1204,93 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
+			elog(NOTICE, "fourth thing @ 1207");
+
+			Datum		current, bound, target;
+			FmgrInfo	op_func = winstate->startOffsetFn;
+			bool		current_isnull, target_isnull;
+			FmgrInfo	cmp_func = winstate->startCmpFn;
+			bool		reverse = node->offsetSortReverse;
+			int64		pos = winstate->currentpos;
+			bool		ahead;
+
+			/*
+			 * In START_VALUE mode, sort key must be single variable, per spec.
+			 */
+			Assert(node->offsetSortColIdx > 0);
+
+			current = slot_getattr(winstate->ss.ss_ScanTupleSlot,
+								   node->offsetSortColIdx, &current_isnull);
+
+			if (!current_isnull)
+			{
+				int		cmp;
+				bound = FunctionCall2(&op_func, current, winstate->startOffsetValue);
+				cmp = DatumGetInt32(FunctionCall2(&cmp_func, current, bound));
+				if (reverse)
+					cmp = -cmp;
+				/*
+				 * If bound is greater than current (in ASC),
+				 * the head seeking goes ahead.
+				 */
+				ahead = cmp < 0;
+			}
+			else
+			{
+				/*
+				 * In NULLS FIRST, head is at the begining of partition.
+				 */
+				if (node->offsetNullsFirst)
+				{
+					winstate->frameheadpos = 0;
+					winstate->framehead_valid = true;
+				return;
+				}
+				/*
+				 * Else, seek for the first NULL rows.
+				 */
+				ahead = false;
+				bound = (Datum) 0; /* keep compiler quiet */
+			}
+			for(;;)
+			{
+				if (!window_gettupleslot(winobj, pos, slot))
+					break;
+				target = slot_getattr(slot, node->offsetSortColIdx, &target_isnull);
+				if (!current_isnull && !target_isnull)
+				{
+					int		cmp;
+
+					cmp = DatumGetInt32(FunctionCall2(&cmp_func, target, bound));
+					if (reverse)
+						cmp = -cmp;
+					if (!ahead)
+					{
+						if (cmp < 0)
+							break;
+					}
+					else
+					{
+						if (cmp >= 0)
+							break;
+					}
+				}
+				/* if either of them is NULL then it's a boundary */
+				else if (!target_isnull || !current_isnull)
+					break;
+				if (!ahead)
+					pos--;
+				else
+					pos++;
+			}
+			winstate->frameheadpos = (ahead ? pos : pos + 1);
+			winstate->framehead_valid = true;
+			return;
+
 			/* parser should have rejected this */
-			elog(ERROR, "window frame with value offset is not implemented");
+			// elog(ERROR, "window frame with value offset is not implemented");
 		}
+		// NOTE: dont know if this is superflous
 		else
 			Assert(false);
 	}
@@ -1165,8 +1392,26 @@ update_frametailpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
+			int64 ftnext;
+			/*
+			 * Else we have to search for the first non-peer of the current row. We
+			 * assume the current value of frametailpos is a lower bound on the
+			 * possible frame tail location, ie, frame tail never goes backward, and
+			 * that currentpos is also a lower bound, ie, current row is always in
+			 * frame.
+			 */
+			ftnext = Max(winstate->frametailpos, winstate->currentpos) + 1;
+			for (;;)
+			{
+				if (!window_gettupleslot(winobj, ftnext, slot))
+					break;				/* end of partition */
+				if (!are_peers(winstate, slot, winstate->ss.ss_ScanTupleSlot))
+					break;				/* not peer of current row */
+				ftnext++;
+			}
+
 			/* parser should have rejected this */
-			elog(ERROR, "window frame with value offset is not implemented");
+			// elog(ERROR, "window frame with value offset is not implemented");
 		}
 		else
 			Assert(false);
@@ -1277,6 +1522,62 @@ ExecWindowAgg(WindowAggState *winstate)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						errmsg("frame ending offset must not be negative")));
+			}
+		}
+		winstate->all_first = false;
+	}
+
+	/*
+	 * Initialize offset value at the first loop.
+	 */
+	if (winstate->all_first)
+	{
+		WindowAgg	   *node = (WindowAgg *) winstate->ss.ps.plan;
+		int				frameOptions = node->frameOptions;
+		ExprContext	   *econtext = winstate->ss.ps.ps_ExprContext;
+		Datum			value;
+		bool			isnull;
+		int16			len;
+		bool			byval;
+
+		if (frameOptions & FRAMEOPTION_START_VALUE)
+		{
+			Assert(winstate->startOffset != NULL);
+			value = ExecEvalExprSwitchContext(winstate->startOffset,
+											  econtext,
+											  &isnull,
+											  NULL);
+			if (isnull)
+				elog(ERROR, "frame starting value must not be NULL");
+			get_typlenbyval(exprType((Node *) winstate->startOffset->expr),
+							&len, &byval);
+			winstate->startOffsetValue = datumCopy(value, byval, len);
+			if (frameOptions & FRAMEOPTION_ROWS)
+			{
+				int64	offset = DatumGetInt64(value);
+
+				if (offset < 0)
+					elog(ERROR, "frame starting offset must not be negative");
+			}
+		}
+		if (frameOptions & FRAMEOPTION_END_VALUE)
+		{
+			Assert(winstate->endOffset != NULL);
+			value = ExecEvalExprSwitchContext(winstate->endOffset,
+											  econtext,
+											  &isnull,
+											  NULL);
+			if (isnull)
+				elog(ERROR, "frame ending value must not be NULL");
+			get_typlenbyval(exprType((Node *) winstate->endOffset->expr),
+							&len, &byval);
+			winstate->endOffsetValue = datumCopy(value, byval, len);
+			if (frameOptions & FRAMEOPTION_ROWS)
+			{
+				int64	offset = DatumGetInt64(value);
+
+				if (offset < 0)
+					elog(ERROR, "frame ending value must not be negative");
 			}
 		}
 		winstate->all_first = false;
@@ -1633,6 +1934,23 @@ ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 	winstate->partition_spooled = false;
 	winstate->more_partitions = false;
 
+	/* for RANGE offset mode stuff */
+	if (node->offsetSortColIdx > 0)
+	{
+		if (node->startOp != InvalidOid)
+		{
+			fmgr_info(get_opcode(node->startOp), &winstate->startOffsetFn);
+			Assert(OidIsValid(node->startCmp));
+			fmgr_info(node->startCmp, &winstate->startCmpFn);
+		}
+		if (node->endOp != InvalidOid)
+		{
+			fmgr_info(get_opcode(node->endOp), &winstate->endOffsetFn);
+			Assert(OidIsValid(node->endCmp));
+			fmgr_info(node->endCmp, &winstate->endCmpFn);
+		}
+	}
+
 	return winstate;
 }
 
@@ -1966,7 +2284,6 @@ window_gettupleslot(WindowObject winobj, int64 pos, TupleTableSlot *slot)
  * API exposed to window functions
  ***********************************************************************/
 
-
 /*
  * WinGetPartitionLocalMemory
  *		Get working memory that lives till end of partition processing
@@ -2117,6 +2434,8 @@ WinGetFuncArgInPartition(WindowObject winobj, int argno,
 						 bool *isnull, bool *isout)
 {
 	WindowAggState *winstate;
+	WindowAgg  *node;
+	int			frameOptions;
 	ExprContext *econtext;
 	TupleTableSlot *slot;
 	bool		gottuple;
@@ -2124,6 +2443,8 @@ WinGetFuncArgInPartition(WindowObject winobj, int argno,
 
 	Assert(WindowObjectIsValid(winobj));
 	winstate = winobj->winstate;
+	node = (WindowAgg *) winstate->ss.ps.plan;
+	frameOptions = node->frameOptions;
 	econtext = winstate->ss.ps.ps_ExprContext;
 	slot = winstate->temp_slot_1;
 
@@ -2213,6 +2534,8 @@ WinGetFuncArgInFrame(WindowObject winobj, int argno,
 					 bool *isnull, bool *isout)
 {
 	WindowAggState *winstate;
+	WindowAgg  *node;
+	int			frameOptions;
 	ExprContext *econtext;
 	TupleTableSlot *slot;
 	bool		gottuple;
@@ -2220,6 +2543,8 @@ WinGetFuncArgInFrame(WindowObject winobj, int argno,
 
 	Assert(WindowObjectIsValid(winobj));
 	winstate = winobj->winstate;
+	node = (WindowAgg *) winstate->ss.ps.plan;
+	frameOptions = node->frameOptions;
 	econtext = winstate->ss.ps.ps_ExprContext;
 	slot = winstate->temp_slot_1;
 

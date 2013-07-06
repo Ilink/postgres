@@ -2033,6 +2033,33 @@ AggCheckCallContext(FunctionCallInfo fcinfo, MemoryContext *aggcontext)
 }
 
 /*
+ * AggGetMemoryContext - an API to expose temporary memory space
+ *
+ * Eventually, aggregate functions want its own memory space to
+ * store user variables or states during executions of transition functions.
+ * For those functions to do it, we abstract the operation so that
+ * future internal changes don't affect them.
+ */
+MemoryContext
+AggGetMemoryContext(Node *node, bool *iswindowagg)
+{
+	if (node && IsA(node, AggState))
+	{
+		if (iswindowagg)
+			*iswindowagg = false;
+		return ((AggState *) node)->aggcontext;
+	}
+	else if (node && IsA(node, WindowAggState))
+	{
+		if (iswindowagg)
+			*iswindowagg = true;
+		return ((WindowAggState *) node)->aggcontext;
+	}
+
+	return NULL;
+}
+
+/*
  * aggregate_dummy - dummy execution routine for aggregate functions
  *
  * This function is listed as the implementation (prosrc field) of pg_proc

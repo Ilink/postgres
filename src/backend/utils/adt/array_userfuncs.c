@@ -478,6 +478,7 @@ array_agg_transfn(PG_FUNCTION_ARGS)
 {
 	Oid			arg1_typeid = get_fn_expr_argtype(fcinfo->flinfo, 1);
 	MemoryContext aggcontext;
+	bool		iswindowagg;
 	ArrayBuildState *state;
 	Datum		elem;
 

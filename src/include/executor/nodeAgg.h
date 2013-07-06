@@ -23,6 +23,7 @@ extern void ExecReScanAgg(AggState *node);
 
 extern Size hash_agg_entry_size(int numAggs);
 
+extern MemoryContext AggGetMemoryContext(Node *node, bool *iswindowagg);
 extern Datum aggregate_dummy(PG_FUNCTION_ARGS);
 
 #endif   /* NODEAGG_H */

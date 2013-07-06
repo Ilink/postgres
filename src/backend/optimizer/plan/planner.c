@@ -1596,6 +1596,12 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 					window_tlist = tlist;
 				}
 
+				/* prepare offset expressions only if exists */
+				wc->startOffset = preprocess_expression(root, wc->startOffset,
+														EXPRKIND_LIMIT);
+				wc->endOffset = preprocess_expression(root, wc->endOffset,
+													  EXPRKIND_LIMIT);
+
 				/* ... and make the WindowAgg plan node */
 				result_plan = (Plan *)
 					make_windowagg(root,
@@ -1608,9 +1614,14 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 								   ordNumCols,
 								   ordColIdx,
 								   ordOperators,
+								   wc->orderClause,
 								   wc->frameOptions,
 								   wc->startOffset,
 								   wc->endOffset,
+								   wc->startOp,
+								   wc->endOp,
+								   wc->startCmp,
+								   wc->endCmp,
 								   result_plan);
 			}
 		}
@@ -3300,6 +3311,12 @@ make_pathkeys_for_window(PlannerInfo *root, WindowClause *wc,
  * redundant.)	In that unusual case, we have to work a lot harder to
  * determine which keys are significant.
  *
+ * This behavior optimizes in executor some cases like ORDER BY clause is
+ * omitted, since all rows are now peer as PARTITION BY = ORDER BY. However,
+ * in RANGE offset mode, window frame is actually interested in syntactic
+ * ORDER BY column to calculate frame bound. In this case, we should leave
+ * the original information to executor.
+ *
  * The method used here is a bit brute-force: add the sort columns to a list
  * one at a time and note when the resulting pathkey list gets longer.	But
  * it's a sufficiently uncommon case that a faster way doesn't seem worth
@@ -3319,6 +3336,9 @@ get_column_info_for_window(PlannerInfo *root, WindowClause *wc, List *tlist,
 	int			numPart = list_length(wc->partitionClause);
 	int			numOrder = list_length(wc->orderClause);
 
+	/*
+	 * in RANGE offset mode, numOrder should be represented as-is.
+	 */
 	if (numSortCols == numPart + numOrder)
 	{
 		/* easy case */

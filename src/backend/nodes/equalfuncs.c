@@ -2092,6 +2092,15 @@ _equalSortBy(const SortBy *a, const SortBy *b)
 	return true;
 }
 
+_equalWindowFrameDef(WindowFrameDef *a, WindowFrameDef *b)
+{
+	COMPARE_SCALAR_FIELD(options);
+	COMPARE_NODE_FIELD(startOffset);
+	COMPARE_NODE_FIELD(endOffset);
+
+	return true;
+}
+
 static bool
 _equalWindowDef(const WindowDef *a, const WindowDef *b)
 {
@@ -2100,6 +2109,8 @@ _equalWindowDef(const WindowDef *a, const WindowDef *b)
 	COMPARE_NODE_FIELD(partitionClause);
 	COMPARE_NODE_FIELD(orderClause);
 	COMPARE_SCALAR_FIELD(frameOptions);
+	// NOTE: is it frameOptions or frame?
+	// COMPARE_NODE_FIELD(frame);
 	COMPARE_NODE_FIELD(startOffset);
 	COMPARE_NODE_FIELD(endOffset);
 	COMPARE_LOCATION_FIELD(location);
@@ -2268,9 +2279,14 @@ _equalWindowClause(const WindowClause *a, const WindowClause *b)
 	COMPARE_STRING_FIELD(refname);
 	COMPARE_NODE_FIELD(partitionClause);
 	COMPARE_NODE_FIELD(orderClause);
+	// NOTE: are we correct
 	COMPARE_SCALAR_FIELD(frameOptions);
 	COMPARE_NODE_FIELD(startOffset);
 	COMPARE_NODE_FIELD(endOffset);
+	COMPARE_SCALAR_FIELD(startOp);
+	COMPARE_SCALAR_FIELD(endOp);
+	COMPARE_SCALAR_FIELD(startCmp);
+	COMPARE_SCALAR_FIELD(endCmp);
 	COMPARE_SCALAR_FIELD(winref);
 	COMPARE_SCALAR_FIELD(copiedOrder);
 
@@ -2952,6 +2968,9 @@ equal(const void *a, const void *b)
 			break;
 		case T_SortBy:
 			retval = _equalSortBy(a, b);
+			break;
+		case T_WindowFrameDef:
+			retval = _equalWindowFrameDef(a, b);
 			break;
 		case T_WindowDef:
 			retval = _equalWindowDef(a, b);

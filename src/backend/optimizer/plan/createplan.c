@@ -4319,8 +4319,9 @@ make_windowagg(PlannerInfo *root, List *tlist,
 			   List *windowFuncs, Index winref,
 			   int partNumCols, AttrNumber *partColIdx, Oid *partOperators,
 			   int ordNumCols, AttrNumber *ordColIdx, Oid *ordOperators,
-			   int frameOptions, Node *startOffset, Node *endOffset,
-			   Plan *lefttree)
+			   List *orderClause, int frameOptions, Node *startOffset,
+			   Node *endOffset, Oid startOp, Oid endOp,
+			   Oid startCmp, Oid endCmp, Plan *lefttree)
 {
 	WindowAgg  *node = makeNode(WindowAgg);
 	Plan	   *plan = &node->plan;
@@ -4336,6 +4337,46 @@ make_windowagg(PlannerInfo *root, List *tlist,
 	node->frameOptions = frameOptions;
 	node->startOffset = startOffset;
 	node->endOffset = endOffset;
+	node->startOp = startOp;
+	node->endOp = endOp;
+	node->startCmp = startCmp;
+	node->endCmp = endCmp;
+
+	/*
+	 * In RANGE offset mode, the executor will need syntactic sort key
+	 * information, rather than actually significant sort (ie pathkeys).
+	 * The planner makes it in that mode to simplify the executor.
+	 */
+	if (frameOptions & FRAMEOPTION_RANGE &&
+			frameOptions & (FRAMEOPTION_START_VALUE | FRAMEOPTION_END_VALUE))
+	{
+		// NOTE: make sure this uses the latest struct names
+		SortGroupClause *sort_key;
+		TargetEntry	   *sort_tle, *upper_tle;
+		Oid				cmpfunc;
+		bool			reverse;
+
+		sort_key = (SortGroupClause *) linitial(orderClause);
+		sort_tle = get_sortgroupref_tle(sort_key->tleSortGroupRef, tlist);
+		/*
+		 * Apart from normal sort, frame determination refers left tree's
+		 * target list. Since actual fixup of reference will be done later,
+		 * we use tlist_member() here.
+		 */
+		upper_tle = tlist_member((Node *) sort_tle->expr, lefttree->targetlist);
+		/* should be found */
+		if (upper_tle == NULL)
+			elog(ERROR, "sort column reference is not found.");
+		node->offsetSortColIdx = upper_tle->resno;
+		// NOTE: this function is not here anymore
+		// if (!get_compare_function_for_ordering_op(sort_key->sortop,
+		// 										  &cmpfunc,
+		// 										  &reverse))
+		// 	elog(ERROR, "operator %u is not a valid ordering operator",
+		// 		 sort_key->sortop);
+		node->offsetSortReverse = reverse;
+		node->offsetNullsFirst = sort_key->nulls_first;
+	}
 
 	copy_plan_costsize(plan, lefttree); /* only care about copying size */
 	cost_windowagg(&windowagg_path, root,

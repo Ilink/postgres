@@ -573,7 +573,7 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
 		Assert(windef->refname == NULL &&
 			   windef->partitionClause == NIL &&
 			   windef->orderClause == NIL &&
-			   windef->frameOptions == FRAMEOPTION_DEFAULTS);
+			   windef->frame->options == FRAMEOPTION_DEFAULTS);
 
 		foreach(lc, pstate->p_windowdefs)
 		{

@@ -624,6 +624,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %nonassoc	BETWEEN
 %nonassoc	IN_P
 %left		POSTFIXOP		/* dummy for postfix Op rules */
+%nonassoc	UNBOUNDED		/* needed for frame_extend, frame_bound */
 /*
  * To support target_el without AS, we must give IDENT an explicit priority
  * between POSTFIXOP and Op.  We can safely assign the same priority to
@@ -644,7 +645,6 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
  * keywords anywhere else in the grammar, but it's definitely risky.  We can
  * blame any funny behavior of UNBOUNDED on the SQL standard, though.
  */
-%nonassoc	UNBOUNDED		/* ideally should have same precedence as IDENT */
 %nonassoc	IDENT NULL_P PARTITION RANGE ROWS PRECEDING FOLLOWING
 %left		Op OPERATOR		/* multi-character ops and user-defined operators */
 %nonassoc	NOTNULL
@@ -11757,6 +11757,9 @@ over_clause: OVER window_specification
 			| OVER ColId
 				{
 					WindowDef *n = makeNode(WindowDef);
+					WindowFrameDef *frame = makeNode(WindowFrameDef);
+					frame->options = FRAMEOPTION_DEFAULTS;
+					//n->frame = frame;
 					n->name = $2;
 					n->refname = NULL;
 					n->partitionClause = NIL;
@@ -11781,6 +11784,8 @@ window_specification: '(' opt_existing_window_name opt_partition_clause
 					n->orderClause = $4;
 					/* copy relevant fields of opt_frame_clause */
 					n->frameOptions = $5->frameOptions;
+					// NOTE: is this neccesary?
+					// n->frame = (WindowFrameDef *) $5;
 					n->startOffset = $5->startOffset;
 					n->endOffset = $5->endOffset;
 					n->location = @1;
@@ -11818,32 +11823,51 @@ opt_frame_clause:
 				{
 					WindowDef *n = $2;
 					n->frameOptions |= FRAMEOPTION_NONDEFAULT | FRAMEOPTION_RANGE;
-					if (n->frameOptions & (FRAMEOPTION_START_VALUE_PRECEDING |
-										   FRAMEOPTION_END_VALUE_PRECEDING))
-						ereport(ERROR,
-								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-								 errmsg("RANGE PRECEDING is only supported with UNBOUNDED"),
-								 parser_errposition(@1)));
-					if (n->frameOptions & (FRAMEOPTION_START_VALUE_FOLLOWING |
-										   FRAMEOPTION_END_VALUE_FOLLOWING))
-						ereport(ERROR,
-								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-								 errmsg("RANGE FOLLOWING is only supported with UNBOUNDED"),
-								 parser_errposition(@1)));
+					n->location = @1;
 					$$ = n;
+
+					// WindowDef *n = $2;
+					// n->frameOptions |= FRAMEOPTION_NONDEFAULT | FRAMEOPTION_RANGE;
+					// if (n->frameOptions & (FRAMEOPTION_START_VALUE_PRECEDING |
+					// 					   FRAMEOPTION_END_VALUE_PRECEDING))
+					// 	ereport(ERROR,
+					// 			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					// 			 errmsg("RANGE PRECEDING is only supported with UNBOUNDED"),
+					// 			 parser_errposition(@1)));
+					// if (n->frameOptions & (FRAMEOPTION_START_VALUE_FOLLOWING |
+					// 					   FRAMEOPTION_END_VALUE_FOLLOWING))
+					// 	ereport(ERROR,
+					// 			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					// 			 errmsg("RANGE FOLLOWING is only supported with UNBOUNDED"),
+					// 			 parser_errposition(@1)));
+					// $$ = n;
 				}
 			| ROWS frame_extent
 				{
+					// WindowFrameDef *frame = (WindowFrameDef *) $2;
+					// frame->options |= FRAMEOPTION_NONDEFAULT | FRAMEOPTION_ROWS;
+					// frame->location = @1;
+					// 	$$ = (Node *) frame;
+
 					WindowDef *n = $2;
 					n->frameOptions |= FRAMEOPTION_NONDEFAULT | FRAMEOPTION_ROWS;
+					n->location = @1;
 					$$ = n;
 				}
 			| /*EMPTY*/
 				{
+					// WindowFrameDef *frame = makeNode(WindowFrameDef);
+					// frame->options = FRAMEOPTION_DEFAULTS;
+					// frame->startOffset = NULL;
+					// frame->endOffset = NULL;
+					// frame->location = -1;
+					// 	$$ = (Node *) frame;
+
 					WindowDef *n = makeNode(WindowDef);
 					n->frameOptions = FRAMEOPTION_DEFAULTS;
 					n->startOffset = NULL;
 					n->endOffset = NULL;
+					n->location = -1;
 					$$ = n;
 				}
 		;
@@ -11851,6 +11875,7 @@ opt_frame_clause:
 frame_extent: frame_bound
 				{
 					WindowDef *n = $1;
+					// WindowFrameDef *frame = (WindowFrameDef *) $1;
 					/* reject invalid cases */
 					if (n->frameOptions & FRAMEOPTION_START_UNBOUNDED_FOLLOWING)
 						ereport(ERROR,
@@ -11930,6 +11955,7 @@ frame_bound:
 				{
 					WindowDef *n = makeNode(WindowDef);
 					n->frameOptions = FRAMEOPTION_START_CURRENT_ROW;
+					// NOTE: patch does not have these
 					n->startOffset = NULL;
 					n->endOffset = NULL;
 					$$ = n;
