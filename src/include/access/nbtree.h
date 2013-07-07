@@ -425,10 +425,15 @@ typedef struct xl_btree_newroot
  *	To facilitate accelerated sorting, an operator class may choose to
  *	offer a second procedure (BTSORTSUPPORT_PROC).	For full details, see
  *	src/include/utils/sortsupport.h.
+ *
+ *
+ *  NOTE: need to put in information about the last two support functions
  */
 
 #define BTORDER_PROC		1
 #define BTSORTSUPPORT_PROC	2
+#define BTPOSOFFSETSUPPORT_PROC	3
+#define BTNEGOFFSETSUPPORT_PROC	4
 
 /*
  *	We need to be able to tell the difference between read and write

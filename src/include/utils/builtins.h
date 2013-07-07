@@ -315,10 +315,11 @@ extern Datum bttextcmp(PG_FUNCTION_ARGS);
 
 /*
  *      Per-opclass offset functions for new btrees.  These are
- *      stored in pg_amproc; most are defined in access/nbtree/nbtcompare.c
- *      TODO: move to access/ntbtree/nbtoffset.c
+ *      stored in pg_amproc; most are defined in access/nbtree/nbtoffset.c
+ *      
  */
 extern Datum btint4posoffset(PG_FUNCTION_ARGS);
+extern Datum btint4negoffset(PG_FUNCTION_ARGS);
 
 
 /*

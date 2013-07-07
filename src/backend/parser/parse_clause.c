@@ -87,7 +87,7 @@ static WindowClause *findWindowClause(List *wclist, const char *name);
 // 					 Node *clause);
 static Node *transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					 bool is_start, List *targetlist, List *orderClause,
-					 Oid *opoid, Oid *cmpoid, int location);
+					 Oid *opoid, Oid *cmpoid, Oid *offsetOid, int location);
 
 
 /*
@@ -1800,6 +1800,7 @@ transformWindowDefinitions(ParseState *pstate,
 											   wc->orderClause,
 											   &wc->startOp,
 											   &wc->startCmp,
+											   &wc->startOffsetFunc,
 											   windef->location);
 		// wc->endOffset = transformFrameOffset(pstate, wc->frameOptions,
 		// 									 windef->endOffset);
@@ -1810,6 +1811,7 @@ transformWindowDefinitions(ParseState *pstate,
 											 wc->orderClause,
 											 &wc->endOp,
 											 &wc->endCmp,
+											 &wc->endOffsetFunc,
 											 windef->location);
 		wc->winref = winref;
 
@@ -2433,7 +2435,7 @@ findWindowClause(List *wclist, const char *name)
 static Node *
 transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					 bool is_start, List *targetlist, List *orderClause,
-					 Oid *opoid, Oid *cmpoid, int location)
+					 Oid *opoid, Oid *cmpoid, Oid *offsetOid, int location)
 {
 	Node	   *node;
 	const char *constructName = is_start ?
@@ -2458,6 +2460,7 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		bool				reverse;
 		Oid					restype;
 		char			   *oper;
+		int 			   offsetFuncType;
 
 		Assert(frameOptions & FRAMEOPTION_RANGE);
 
@@ -2499,10 +2502,14 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			 */
 			if (is_start)
 			{
-				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING)
+				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING){
 					oper = "-";
-				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
+				}
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
 					oper = "+";
+					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
+				}
 				else
 				{
 					Assert(false);
@@ -2511,10 +2518,14 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			}
 			else
 			{
-				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING)
+				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING){
 					oper = "-";
-				else if (frameOptions & FRAMEOPTION_END_VALUE_FOLLOWING)
+					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
+				}
+				else if (frameOptions & FRAMEOPTION_END_VALUE_FOLLOWING){
 					oper = "+";
+					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
+				}
 				else
 				{
 					Assert(false);
@@ -2530,10 +2541,14 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			 */
 			if (is_start)
 			{
-				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING)
+				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING){
 					oper = "+";
-				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
+				}
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
 					oper = "-";
+					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
+				}
 				else
 				{
 					Assert(false);
@@ -2542,10 +2557,14 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			}
 			else
 			{
-				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING)
+				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING){
 					oper = "+";
-				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING)
+					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
+				}
+				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
 					oper = "-";
+					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
+				}
 				else
 				{
 					Assert(false);
@@ -2561,11 +2580,14 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 								restype, exprType(node), false, location);
 
 		*cmpoid = InvalidOid;
+		*offsetOid = InvalidOid;
 
 		/*
 		 * Find compare function between sort key type and offset type
 		 * because the result bound type may be changed after
 		 * adding/subtracting offset value.
+		 *
+		 * Additionally, find the support function for offset.
 		 */
 		if (OidIsValid(*opoid))
 		{
@@ -2588,12 +2610,23 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 											restype,
 											oper_restype,
 											BTORDER_PROC);
+
+				*offsetOid = get_opfamily_proc(opfamily,
+											restype,	  // this part might be wrong
+											oper_restype, // this part is wrong too
+											offsetFuncType);
 			}
 		}
 		if (!OidIsValid(*cmpoid))
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 					errmsg("cannot compare sort key type and offset type in frame"),
+					parser_errposition(pstate, location)));
+
+		if (!OidIsValid(*offsetOid))
+			ereport(ERROR,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					errmsg("offset OID invalid. ?? cannot compare sort key type and offset type in frame"),
 					parser_errposition(pstate, location)));
 	}
 

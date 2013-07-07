@@ -2241,8 +2241,11 @@ window_gettupleslot(WindowObject winobj, int64 pos, TupleTableSlot *slot)
 	if (pos >= winstate->spooled_rows)
 		return false;
 
+	// NOTE: this may or may not be correct!
+	// ok this isn't correct because this is here from like 5 years ago
 	if (pos < winobj->markpos)
-		elog(ERROR, "cannot fetch row before WindowObject's mark position");
+		return false;
+		// elog(ERROR, "cannot fetch row before WindowObject's mark position");
 
 	oldcontext = MemoryContextSwitchTo(winstate->ss.ps.ps_ExprContext->ecxt_per_query_memory);
 
