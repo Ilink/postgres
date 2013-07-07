@@ -4320,7 +4320,7 @@ make_windowagg(PlannerInfo *root, List *tlist,
 			   int partNumCols, AttrNumber *partColIdx, Oid *partOperators,
 			   int ordNumCols, AttrNumber *ordColIdx, Oid *ordOperators,
 			   List *orderClause, int frameOptions, Node *startOffset,
-			   Node *endOffset, Oid startOp, Oid endOp,
+			   Node *endOffset, Oid startOp, Oid endOp, Oid startOffsetFunc, Oid endOffsetFunc,
 			   Oid startCmp, Oid endCmp, Plan *lefttree)
 {
 	WindowAgg  *node = makeNode(WindowAgg);
@@ -4339,6 +4339,8 @@ make_windowagg(PlannerInfo *root, List *tlist,
 	node->endOffset = endOffset;
 	node->startOp = startOp;
 	node->endOp = endOp;
+	node->startOffsetFunc = startOffsetFunc;
+	node->endOffsetFunc = endOffsetFunc;
 	node->startCmp = startCmp;
 	node->endCmp = endCmp;
 

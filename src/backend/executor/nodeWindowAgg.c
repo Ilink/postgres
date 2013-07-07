@@ -944,7 +944,7 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			elog(NOTICE, "first thing @ 947");
+			// elog(NOTICE, "first thing @ 947");
 			Datum	current, target;
 			bool	current_isnull, target_isnull;
 			bool	reverse = node->offsetSortReverse;
@@ -1048,7 +1048,7 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			elog(NOTICE, "second thing @ 1051");
+			// elog(NOTICE, "second thing @ 1051");
 
 			Datum	current, target;
 			bool	current_isnull, target_isnull;
@@ -1142,7 +1142,7 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			elog(NOTICE, "third thing @ 1145");
+			// elog(NOTICE, "third thing @ 1145");
 
 			int64		fhprev;
 
@@ -1204,7 +1204,7 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			elog(NOTICE, "fourth thing @ 1207");
+			// elog(NOTICE, "fourth thing @ 1207");
 
 			Datum		current, bound, target;
 			FmgrInfo	op_func = winstate->startOffsetFn;
@@ -1939,13 +1939,13 @@ ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 	{
 		if (node->startOp != InvalidOid)
 		{
-			fmgr_info(get_opcode(node->startOp), &winstate->startOffsetFn);
+			fmgr_info(get_opcode(node->startOffsetFunc), &winstate->startOffsetFn);
 			Assert(OidIsValid(node->startCmp));
 			fmgr_info(node->startCmp, &winstate->startCmpFn);
 		}
 		if (node->endOp != InvalidOid)
 		{
-			fmgr_info(get_opcode(node->endOp), &winstate->endOffsetFn);
+			fmgr_info(get_opcode(node->endOffsetFunc), &winstate->endOffsetFn);
 			Assert(OidIsValid(node->endCmp));
 			fmgr_info(node->endCmp, &winstate->endCmpFn);
 		}

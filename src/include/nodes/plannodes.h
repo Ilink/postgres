@@ -652,6 +652,8 @@ typedef struct WindowAgg
 	int			frameOptions;	/* frame_clause options, see WindowDef */
 	Node	   *startOffset;	/* expression for starting bound, if any */
 	Node	   *endOffset;		/* expression for ending bound, if any */
+	Oid			startOffsetFunc;
+	Oid			endOffsetFunc;
 	Oid			startOp;		/* ""/"-" to calculate start bound */
 	Oid			endOp;			/* ""/"-" to calculate end bound */
 	Oid			startCmp;		/* compare function for start bound */

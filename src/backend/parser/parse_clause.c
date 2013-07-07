@@ -2628,6 +2628,8 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 					errmsg("offset OID invalid. ?? cannot compare sort key type and offset type in frame"),
 					parser_errposition(pstate, location)));
+		else
+			elog(NOTICE, "Found offset OID: %i", *offsetOid);
 	}
 
 	// checkExprIsLevelStable(pstate, node, constructName);

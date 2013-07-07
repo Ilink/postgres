@@ -1618,6 +1618,8 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 								   wc->frameOptions,
 								   wc->startOffset,
 								   wc->endOffset,
+								   wc->startOffsetFunc,
+								   wc->endOffsetFunc,
 								   wc->startOp,
 								   wc->endOp,
 								   wc->startCmp,

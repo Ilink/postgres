@@ -68,7 +68,7 @@ extern WindowAgg *make_windowagg(PlannerInfo *root, List *tlist,
 			   int partNumCols, AttrNumber *partColIdx, Oid *partOperators,
 			   int ordNumCols, AttrNumber *ordColIdx, Oid *ordOperators,
 			   List *orderClause, int frameOptions, Node *startOffset,
-			   Node *endOffset, Oid startOp, Oid endOp,
+			   Node *endOffset, Oid startOp, Oid endOp, Oid startOffsetFunc, Oid endOffsetFunc,
 			   Oid startCmp, Oid endCmp, Plan *lefttree);
 // extern WindowAgg *make_windowagg(PlannerInfo *root, List *tlist,
 // 			   List *windowFuncs, Index winref,
