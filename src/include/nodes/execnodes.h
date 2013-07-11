@@ -1743,9 +1743,8 @@ typedef struct WindowAggState
 	Datum		endOffsetValue; /* result of endOffset evaluation */
 
 	/* RANGE only */
-	// NOTE: change the comments here to reflect the new support functions
-	FmgrInfo	startOffsetFn;	/* "+"/"-" operator function for start */
-	FmgrInfo	endOffsetFn;	/* "+"/"-" operator function for end */
+	FmgrInfo	startOffsetFn;	/* positive/negative support function for start */
+	FmgrInfo	endOffsetFn;	/* positive/negative support function for end */
 	FmgrInfo	startCmpFn;		/* compare function for start bound */
  	FmgrInfo	endCmpFn;		/* compare function for end bound */
 

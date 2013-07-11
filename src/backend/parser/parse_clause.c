@@ -2576,6 +2576,7 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		/*
 		 * find the operator "+" or "-" for these data types
 		 */
+		 // TODO: this should not use this function
 		*opoid = LookupOperName(pstate, list_make1(makeString(oper)),
 								restype, exprType(node), false, location);
 
