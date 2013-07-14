@@ -680,8 +680,8 @@ _outWindowAgg(StringInfo str, const WindowAgg *node)
 	WRITE_INT_FIELD(frameOptions);
 	WRITE_NODE_FIELD(startOffset);
 	WRITE_NODE_FIELD(endOffset);
-	WRITE_UINT_FIELD(startOp);
-	WRITE_UINT_FIELD(endOp);
+	WRITE_UINT_FIELD(startOffsetFunc);
+	WRITE_UINT_FIELD(endOffsetFunc);
 	WRITE_UINT_FIELD(startCmp);
 	WRITE_UINT_FIELD(endCmp);
 }
@@ -2285,8 +2285,8 @@ _outWindowClause(StringInfo str, const WindowClause *node)
 	WRITE_INT_FIELD(frameOptions);
 	WRITE_NODE_FIELD(startOffset);
 	WRITE_NODE_FIELD(endOffset);
-	WRITE_UINT_FIELD(startOp);
-	WRITE_UINT_FIELD(endOp);
+	WRITE_UINT_FIELD(startOffsetFunc);
+	WRITE_UINT_FIELD(endOffsetFunc);
 	WRITE_UINT_FIELD(startCmp);
 	WRITE_UINT_FIELD(endCmp);
 	WRITE_UINT_FIELD(winref);

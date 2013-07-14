@@ -807,8 +807,8 @@ _copyWindowAgg(const WindowAgg *from)
 	{
 		COPY_POINTER_FIELD(ordColIdx, from->ordNumCols * sizeof(AttrNumber));
 		COPY_POINTER_FIELD(ordOperators, from->ordNumCols * sizeof(Oid));
-		COPY_SCALAR_FIELD(startOp);
-		COPY_SCALAR_FIELD(endOp);
+		COPY_SCALAR_FIELD(startOffsetFunc);
+		COPY_SCALAR_FIELD(endOffsetFunc);
 		COPY_SCALAR_FIELD(startCmp);
 		COPY_SCALAR_FIELD(endCmp);
 	}

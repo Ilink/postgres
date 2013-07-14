@@ -29,10 +29,15 @@
 Datum
 btint4posoffset(PG_FUNCTION_ARGS)
 {
+	// FunctionCallInvoke(int4pl)
+	// PG_RETURN_INT32(int4pl(PG_FUNCTION_ARGS));
+	// elog(NOTICE, "collation: %i", PG_GET_COLLATION());
 	int32		arg1 = PG_GETARG_INT32(0);
 	int32		arg2 = PG_GETARG_INT32(1);
 	int32		result;
+	// FunctionCall2
 
+	elog(NOTICE, "%i + %i", arg1, arg2);
 	result = arg1 + arg2;
 
 	/*

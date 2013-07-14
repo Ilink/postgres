@@ -1620,8 +1620,6 @@ grouping_planner(PlannerInfo *root, double tuple_fraction)
 								   wc->endOffset,
 								   wc->startOffsetFunc,
 								   wc->endOffsetFunc,
-								   wc->startOp,
-								   wc->endOp,
 								   wc->startCmp,
 								   wc->endCmp,
 								   result_plan);

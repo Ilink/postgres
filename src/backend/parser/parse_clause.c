@@ -87,7 +87,7 @@ static WindowClause *findWindowClause(List *wclist, const char *name);
 // 					 Node *clause);
 static Node *transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					 bool is_start, List *targetlist, List *orderClause,
-					 Oid *opoid, Oid *cmpoid, Oid *offsetOid, int location);
+					 Oid *cmpoid, Oid *offsetOid, int location);
 
 
 /*
@@ -1798,7 +1798,6 @@ transformWindowDefinitions(ParseState *pstate,
 											   true,
 											   *targetlist,
 											   wc->orderClause,
-											   &wc->startOp,
 											   &wc->startCmp,
 											   &wc->startOffsetFunc,
 											   windef->location);
@@ -1809,7 +1808,6 @@ transformWindowDefinitions(ParseState *pstate,
 											 false,
 											 *targetlist,
 											 wc->orderClause,
-											 &wc->endOp,
 											 &wc->endCmp,
 											 &wc->endOffsetFunc,
 											 windef->location);
@@ -2435,7 +2433,7 @@ findWindowClause(List *wclist, const char *name)
 static Node *
 transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					 bool is_start, List *targetlist, List *orderClause,
-					 Oid *opoid, Oid *cmpoid, Oid *offsetOid, int location)
+					 Oid *cmpoid, Oid *offsetOid, int location)
 {
 	Node	   *node;
 	const char *constructName = is_start ?
@@ -2459,7 +2457,6 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		Oid					cmpfunc;
 		bool				reverse;
 		Oid					restype;
-		char			   *oper;
 		int 			   offsetFuncType;
 
 		Assert(frameOptions & FRAMEOPTION_RANGE);
@@ -2503,33 +2500,27 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			if (is_start)
 			{
 				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING){
-					oper = "-";
 					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
 				}
 				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
-					oper = "+";
 					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
 				}
 				else
 				{
 					Assert(false);
-					oper = NULL; /* keep compiler quiet */
 				}
 			}
 			else
 			{
 				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING){
-					oper = "-";
 					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
 				}
 				else if (frameOptions & FRAMEOPTION_END_VALUE_FOLLOWING){
-					oper = "+";
 					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
 				}
 				else
 				{
 					Assert(false);
-					oper = NULL; /* keep compiler quiet */
 				}
 			}
 		}
@@ -2542,33 +2533,27 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			if (is_start)
 			{
 				if (frameOptions & FRAMEOPTION_START_VALUE_PRECEDING){
-					oper = "+";
 					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
 				}
 				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
-					oper = "-";
 					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
 				}
 				else
 				{
 					Assert(false);
-					oper = NULL; /* keep compiler quiet */
 				}
 			}
 			else
 			{
 				if (frameOptions & FRAMEOPTION_END_VALUE_PRECEDING){
-					oper = "+";
 					offsetFuncType = BTPOSOFFSETSUPPORT_PROC;
 				}
 				else if (frameOptions & FRAMEOPTION_START_VALUE_FOLLOWING){
-					oper = "-";
 					offsetFuncType = BTNEGOFFSETSUPPORT_PROC;
 				}
 				else
 				{
 					Assert(false);
-					oper = NULL; /* keep compiler quiet */
 				}
 			}
 		}
@@ -2577,8 +2562,8 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		 * find the operator "+" or "-" for these data types
 		 */
 		 // TODO: this should not use this function
-		*opoid = LookupOperName(pstate, list_make1(makeString(oper)),
-								restype, exprType(node), false, location);
+		// *opoid = LookupOperName(pstate, list_make1(makeString(oper)),
+		// 						restype, exprType(node), false, location);
 
 		*cmpoid = InvalidOid;
 		*offsetOid = InvalidOid;
@@ -2590,16 +2575,20 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		 *
 		 * Additionally, find the support function for offset.
 		 */
-		if (OidIsValid(*opoid))
-		{
+		// if (OidIsValid(*opoid))
+		// {
+		 // TODO: replace this check with something else for support func?
 			Oid		oper_restype;
 			Oid		opfamily;
 			Oid		opcintype;
 			int16	strategy;
 
-			oper_restype = opr_restype_byid(*opoid);
-			if (!OidIsValid(oper_restype))		/* should not happen */
-				elog(ERROR, "missing result type for %u", oper_restype);
+
+			// oper_restype = opr_restype_byid(*opoid);
+
+			// oper_restype = opr_restype_byid(*opoid);
+			// if (!OidIsValid(oper_restype))		/* should not happen */
+				// elog(ERROR, "missing result type for %u", oper_restype);
 
 			/*
 			 * Find cmpare function by opfamily of sort operator.
@@ -2607,17 +2596,25 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			if (get_ordering_op_properties(sort->sortop,
 										   &opfamily, &opcintype, &strategy))
 			{
+				// this implies that we must use the sort type
+				// do we need another check beforehand?
 				*cmpoid = get_opfamily_proc(opfamily,
 											restype,
-											oper_restype,
+											restype,
 											BTORDER_PROC);
 
+				/*
+				NOTE: this returns 352 and 353, which is correct!
+				but for some reason it is not correc ltater
+				*/
 				*offsetOid = get_opfamily_proc(opfamily,
-											restype,	  // this part might be wrong
-											oper_restype, // this part is wrong too
+											restype,   // this part might be wrong
+											restype, 	// this part is wrong too
 											offsetFuncType);
 			}
-		}
+		// }
+
+		//TODO: update these
 		if (!OidIsValid(*cmpoid))
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -2629,8 +2626,8 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 					errmsg("offset OID invalid. ?? cannot compare sort key type and offset type in frame"),
 					parser_errposition(pstate, location)));
-		else
-			elog(NOTICE, "Found offset OID: %i", *offsetOid);
+		// else
+		// 	elog(NOTICE, "Found offset OID: %i", *offsetOid);
 	}
 
 	// checkExprIsLevelStable(pstate, node, constructName);

@@ -205,6 +205,7 @@ SELECT sum(unique1) over (w range between current row and unbounded following),
 	unique1, four
 FROM tenk1 WHERE unique1 < 10 WINDOW w AS (order by four);
 
+-- fail: not implemented yet
 SELECT sum(unique1) over (order by four range between 2::int8 preceding and 1::int2 preceding),
 	unique1, four
 FROM tenk1 WHERE unique1 < 10;
@@ -228,71 +229,6 @@ CREATE TEMP VIEW v_window AS
 SELECT * FROM v_window;
 
 SELECT pg_get_viewdef('v_window');
-
-SELECT sum(unique1) over (order by four range between current row and unbounded following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (rows between current row and unbounded following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (rows between 2 preceding and 2 following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (rows between 2 preceding and 1 preceding),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (rows between 1 following and 3 following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (rows between unbounded preceding and 1 following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over (w range between current row and unbounded following),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10 WINDOW w AS (order by four);
-
-SELECT sum(unique1) over (order by four range between 2::int8 preceding and 1::int2 preceding),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT first_value(unique1) over w,
-	nth_value(unique1, 2) over w AS nth_2,
-	last_value(unique1) over w, unique1, four
-FROM tenk1 WHERE unique1 < 10
-WINDOW w AS (order by four range between current row and unbounded following);
-
-SELECT last_value(unique1) over (order by four desc range between 1 preceding and current row),
-	unique1, four
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT sum(unique1) over
-	(rows (SELECT unique1 FROM tenk1 ORDER BY unique1 LIMIT 1) + 1 PRECEDING),
-	unique1
-FROM tenk1 WHERE unique1 < 10;
-
-SELECT array_agg(nm) over (order by ts
-	range between interval '24 hours' preceding and current row),
-	ts, nm
-FROM(VALUES('2009-10-12'::timestamptz, '1002'::text),('2009-10-13', '1013'),('2009-10-14', '1014-1'),('2009-10-14', '1014-2'),(NULL::timestamptz, 'null-1'),(NULL::timestamptz, 'null-2'))tt (ts, nm);
-
-SELECT four, ten, sum(ten) over (partition by four order by four range 1 preceding)
-FROM tenk1 WHERE unique1 < 10;
-
-CREATE VIEW v_window AS
-	SELECT i, sum(i) over (order by i rows between 1 preceding and 1 following) as sum_rows,
-	sum(i) over (order by i / 3 range between 1 preceding and 1 following) as sum_range
-	FROM generate_series(1, 10) i;
-SELECT * FROM v_window;
-
-SELECT pg_get_viewdef('v_window');
-
-DROP VIEW v_window;
 
 -- with UNION
 SELECT count(*) OVER (PARTITION BY four) FROM (SELECT * FROM tenk1 UNION ALL SELECT * FROM tenk2)s LIMIT 0;

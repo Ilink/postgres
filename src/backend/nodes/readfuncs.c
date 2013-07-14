@@ -286,8 +286,8 @@ _readWindowClause(void)
 	READ_INT_FIELD(frameOptions);
 	READ_NODE_FIELD(startOffset);
 	READ_NODE_FIELD(endOffset);
-	READ_UINT_FIELD(startOp);
-	READ_UINT_FIELD(endOp);
+	READ_UINT_FIELD(startOffsetFunc);
+	READ_UINT_FIELD(endOffsetFunc);
 	READ_UINT_FIELD(startCmp);
 	READ_UINT_FIELD(endCmp);
 	READ_UINT_FIELD(winref);

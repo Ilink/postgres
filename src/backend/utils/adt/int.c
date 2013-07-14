@@ -641,6 +641,8 @@ int4pl(PG_FUNCTION_ARGS)
 
 	result = arg1 + arg2;
 
+	// elog(NOTICE, "%i + %i", arg1, arg2);
+
 	/*
 	 * Overflow check.	If the inputs are of different signs then their sum
 	 * cannot overflow.  If the inputs are of the same sign, their sum had
@@ -661,6 +663,8 @@ int4mi(PG_FUNCTION_ARGS)
 	int32		result;
 
 	result = arg1 - arg2;
+	// elog(NOTICE, "%i - %i", arg1, arg2);
+
 
 	/*
 	 * Overflow check.	If the inputs are of the same sign then their

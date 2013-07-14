@@ -2283,8 +2283,8 @@ _equalWindowClause(const WindowClause *a, const WindowClause *b)
 	COMPARE_SCALAR_FIELD(frameOptions);
 	COMPARE_NODE_FIELD(startOffset);
 	COMPARE_NODE_FIELD(endOffset);
-	COMPARE_SCALAR_FIELD(startOp);
-	COMPARE_SCALAR_FIELD(endOp);
+	COMPARE_SCALAR_FIELD(startOffsetFunc);
+	COMPARE_SCALAR_FIELD(endOffsetFunc);
 	COMPARE_SCALAR_FIELD(startCmp);
 	COMPARE_SCALAR_FIELD(endCmp);
 	COMPARE_SCALAR_FIELD(winref);

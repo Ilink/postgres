@@ -884,11 +884,9 @@ typedef struct WindowClause
 	Node	   *startOffset;	/* expression for starting bound, if any */
 	Node	   *endOffset;		/* expression for ending bound, if any */
 
-	Oid			startOp;		 /* operator to calculate start bound */
 	Oid 		startOffsetFunc; /* support function to calculate start bound */
 	Oid 		endOffsetFunc;	 /* support function to calculate end bound */
 
-	Oid			endOp;			/* operator to calculate end bound */
 	Oid			startCmp;		/* compare function for start bound */
 	Oid			endCmp;			/* compare function for end bound */
 

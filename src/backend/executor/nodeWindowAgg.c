@@ -944,7 +944,7 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			// elog(NOTICE, "first thing @ 947");
+			// //elog(NOTICE, "first thing @ 947");
 			Datum	current, target;
 			bool	current_isnull, target_isnull;
 			bool	reverse = node->offsetSortReverse;
@@ -1048,7 +1048,7 @@ row_is_in_frame(WindowAggState *winstate, int64 pos, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			// elog(NOTICE, "second thing @ 1051");
+			// //elog(NOTICE, "second thing @ 1051");
 
 			Datum	current, target;
 			bool	current_isnull, target_isnull;
@@ -1142,7 +1142,7 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			// elog(NOTICE, "third thing @ 1145");
+			// //elog(NOTICE, "third thing @ 1145");
 
 			int64		fhprev;
 
@@ -1204,7 +1204,7 @@ update_frameheadpos(WindowObject winobj, TupleTableSlot *slot)
 		}
 		else if (frameOptions & FRAMEOPTION_RANGE)
 		{
-			// elog(NOTICE, "fourth thing @ 1207");
+			// //elog(NOTICE, "fourth thing @ 1207");
 
 			Datum		current, bound, target;
 			FmgrInfo	op_func = winstate->startOffsetFn;
@@ -1491,7 +1491,7 @@ ExecWindowAgg(WindowAggState *winstate)
 			get_typlenbyval(exprType((Node *) winstate->startOffset->expr),
 							&len, &byval);
 			winstate->startOffsetValue = datumCopy(value, byval, len);
-			elog(NOTICE, "start val: %i", winstate->startOffsetValue);
+			//elog(NOTICE, "start val: %i", winstate->startOffsetValue);
 			if (frameOptions & FRAMEOPTION_ROWS)
 			{
 				/* value is known to be int8 */
@@ -1521,7 +1521,7 @@ ExecWindowAgg(WindowAggState *winstate)
 			get_typlenbyval(exprType((Node *) winstate->endOffset->expr),
 							&len, &byval);
 			winstate->endOffsetValue = datumCopy(value, byval, len);
-			elog(NOTICE, "end val: %i", winstate->endOffsetValue);
+			//elog(NOTICE, "end val: %i", winstate->endOffsetValue);
 
 			if (frameOptions & FRAMEOPTION_ROWS)
 			{
@@ -1562,7 +1562,7 @@ ExecWindowAgg(WindowAggState *winstate)
 			get_typlenbyval(exprType((Node *) winstate->startOffset->expr),
 							&len, &byval);
 			winstate->startOffsetValue = datumCopy(value, byval, len);
-			elog(NOTICE, "start val: %i", winstate->startOffsetValue);
+			//elog(NOTICE, "start val: %i", winstate->startOffsetValue);
 			if (frameOptions & FRAMEOPTION_ROWS)
 			{
 				int64	offset = DatumGetInt64(value);
@@ -1583,7 +1583,7 @@ ExecWindowAgg(WindowAggState *winstate)
 			get_typlenbyval(exprType((Node *) winstate->endOffset->expr),
 							&len, &byval);
 			winstate->endOffsetValue = datumCopy(value, byval, len);
-			elog(NOTICE, "end val: %i", winstate->endOffsetValue);
+			//elog(NOTICE, "end val: %i", winstate->endOffsetValue);
 
 			if (frameOptions & FRAMEOPTION_ROWS)
 			{
@@ -1604,14 +1604,14 @@ restart:
 	{
 		/* Initialize for first partition and set current row = 0 */
 		begin_partition(winstate);
-		elog(NOTICE, "making first partition");
+		//elog(NOTICE, "making first partition");
 		/* If there are no input rows, we'll detect that and exit below */
 	}
 	else
 	{
 		/* Advance current row within partition */
 		winstate->currentpos++;
-		elog(NOTICE, "advancing current position to: %i", winstate->currentpos);		
+		//elog(NOTICE, "advancing current position to: %i", winstate->currentpos);		
 		/* This might mean that the frame moves, too */
 		winstate->framehead_valid = false;
 		winstate->frametail_valid = false;
@@ -1627,7 +1627,7 @@ restart:
 	if (winstate->partition_spooled &&
 		winstate->currentpos >= winstate->spooled_rows)
 	{
-		elog(NOTICE, "making new partition");
+		//elog(NOTICE, "making new partition");
 		release_partition(winstate);
 
 		if (winstate->more_partitions)
@@ -1666,7 +1666,7 @@ restart:
 	 * Evaluate true window functions
 	 */
 	numfuncs = winstate->numfuncs;
-	elog(NOTICE, "numfuncs %i", numfuncs);
+	//elog(NOTICE, "numfuncs %i", numfuncs);
 	for (i = 0; i < numfuncs; i++)
 	{
 		WindowStatePerFunc perfuncstate = &(winstate->perfunc[i]);
@@ -1957,15 +1957,22 @@ ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 	/* for RANGE offset mode stuff */
 	if (node->offsetSortColIdx > 0)
 	{
-		if (node->startOp != InvalidOid)
-		{
-			fmgr_info(get_opcode(node->startOffsetFunc), &winstate->startOffsetFn);
+		if (node->startOffsetFunc != InvalidOid)
+		{			
+			fmgr_info(node->startOffsetFunc, &winstate->startOffsetFn);
+			// elog(NOTICE, 'start offset OID: %i', 1);
+			elog(NOTICE, "start offset is valid %i", winstate->startOffsetFn.fn_oid);
+
 			Assert(OidIsValid(node->startCmp));
 			fmgr_info(node->startCmp, &winstate->startCmpFn);
 		}
-		if (node->endOp != InvalidOid)
+		if (node->endOffsetFunc != InvalidOid)
 		{
-			fmgr_info(get_opcode(node->endOffsetFunc), &winstate->endOffsetFn);
+			// elog(NOTICE, 'start offset OID: %i', get_opcode(node->endOffsetFunc));
+
+			fmgr_info(node->endOffsetFunc, &winstate->endOffsetFn);
+			elog(NOTICE, "end offset is valid %i", winstate->endOffsetFn.fn_oid);
+
 			Assert(OidIsValid(node->endCmp));
 			fmgr_info(node->endCmp, &winstate->endCmpFn);
 		}
@@ -2370,7 +2377,7 @@ WinGetPartitionRowCount(WindowObject winobj)
 void
 WinSetMarkPosition(WindowObject winobj, int64 markpos)
 {
-	elog(NOTICE, "pos in window %i", markpos);
+	//elog(NOTICE, "pos in window %i", markpos);
 	WindowAggState *winstate;
 
 	Assert(WindowObjectIsValid(winobj));
@@ -2457,7 +2464,7 @@ WinGetFuncArgInPartition(WindowObject winobj, int argno,
 						 int relpos, int seektype, bool set_mark,
 						 bool *isnull, bool *isout)
 {
-	elog(NOTICE,"WinGetFuncArgInPartition called");
+	//elog(NOTICE,"WinGetFuncArgInPartition called");
 
 	WindowAggState *winstate;
 	WindowAgg  *node;
@@ -2521,14 +2528,19 @@ WinGetFuncArgInPartition(WindowObject winobj, int argno,
 			 * was its mark.  Perhaps use a separate mark for frame head
 			 * probes?
 			 */
-			// if ((frameOptions & FRAMEOPTION_RANGE) &&
-			// 	!(frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING))
-			// {
-			// 	update_frameheadpos(winobj, winstate->temp_slot_2);
-			// 	if (mark_pos > winstate->frameheadpos)
-			// 		mark_pos = winstate->frameheadpos;
-			// }
-			elog(NOTICE,"setting mark in agg");
+			if ((frameOptions & FRAMEOPTION_RANGE) &&
+				!(frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING))
+			{
+				// elog(NOTICE, "mark pos: %llu frame head pos: %llu", 
+				// 	mark_pos, winstate->frameheadpos);
+				update_frameheadpos(winobj, winstate->temp_slot_2);
+				// elog(NOTICE, "mark pos: %llu frame head pos: %llu", 
+				// 	mark_pos, winstate->frameheadpos);
+				
+				if (mark_pos > winstate->frameheadpos)
+					mark_pos = winstate->frameheadpos;
+			}
+			//elog(NOTICE,"setting mark in agg");
 
 			WinSetMarkPosition(winobj, mark_pos);
 		}
@@ -2564,7 +2576,7 @@ WinGetFuncArgInFrame(WindowObject winobj, int argno,
 					 int relpos, int seektype, bool set_mark,
 					 bool *isnull, bool *isout)
 {
-	elog(NOTICE,"WinGetFuncArgInFrame called!");
+	//elog(NOTICE,"WinGetFuncArgInFrame called!");
 
 	WindowAggState *winstate;
 	WindowAgg  *node;
@@ -2631,14 +2643,21 @@ WinGetFuncArgInFrame(WindowObject winobj, int argno,
 			 * was its mark.  Perhaps use a separate mark for frame head
 			 * probes?
 			 */
-			// if ((frameOptions & FRAMEOPTION_RANGE) &&
-			// 	!(frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING))
-			// {
-			// 	update_frameheadpos(winobj, winstate->temp_slot_2);
-			// 	if (mark_pos > winstate->frameheadpos)
-			// 		mark_pos = winstate->frameheadpos;
-			// }
-			elog(NOTICE,"setting mark in func");
+			if ((frameOptions & FRAMEOPTION_RANGE) &&
+				!(frameOptions & FRAMEOPTION_START_UNBOUNDED_PRECEDING))
+			{
+				// elog(NOTICE, "mark pos: %llu frame head pos: %llu", 
+				// 	mark_pos, winstate->frameheadpos);
+
+				update_frameheadpos(winobj, winstate->temp_slot_2);
+
+				// elog(NOTICE, "mark pos: %llu frame head pos: %llu", 
+				// 	mark_pos, winstate->frameheadpos);
+
+				if (mark_pos > winstate->frameheadpos)
+					mark_pos = winstate->frameheadpos;
+			}
+			//elog(NOTICE,"setting mark in func");
 			WinSetMarkPosition(winobj, mark_pos);
 		}
 		econtext->ecxt_outertuple = slot;

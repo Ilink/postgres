@@ -654,8 +654,8 @@ typedef struct WindowAgg
 	Node	   *endOffset;		/* expression for ending bound, if any */
 	Oid			startOffsetFunc;
 	Oid			endOffsetFunc;
-	Oid			startOp;		/* ""/"-" to calculate start bound */
-	Oid			endOp;			/* ""/"-" to calculate end bound */
+	//Oid			startOp;		/* ""/"-" to calculate start bound */
+	//Oid			endOp;			/* ""/"-" to calculate end bound */
 	Oid			startCmp;		/* compare function for start bound */
 	Oid			endCmp;			/* compare function for end bound */
 	AttrNumber	offsetSortColIdx; /* In RANGE offset, which is sort key? */

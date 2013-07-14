@@ -406,7 +406,6 @@ window_lead_with_offset_and_default(PG_FUNCTION_ARGS)
 Datum
 window_first_value(PG_FUNCTION_ARGS)
 {
-	elog(NOTICE, "test");
 	WindowObject winobj = PG_WINDOW_OBJECT();
 	Datum		result;
 	bool		isnull;
