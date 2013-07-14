@@ -23,56 +23,73 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-
 #include "utils/builtins.h"
+
+// re-routes to another function
+// useful because most of these functions alias to others
+#define CALL_OTHER(fnOid) \
+ 		FmgrInfo finfo; \
+ 		fmgr_info(fnOid, &finfo); \
+ 		Datum result = FunctionCall2(&finfo, \
+ 						fcinfo->arg[0], fcinfo->arg[1]); \
+ 		PG_RETURN_INT32(result);
+
+Datum
+btint2posoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(176);
+}
 
 Datum
 btint4posoffset(PG_FUNCTION_ARGS)
 {
-	// FunctionCallInvoke(int4pl)
-	// PG_RETURN_INT32(int4pl(PG_FUNCTION_ARGS));
-	// elog(NOTICE, "collation: %i", PG_GET_COLLATION());
-	int32		arg1 = PG_GETARG_INT32(0);
-	int32		arg2 = PG_GETARG_INT32(1);
-	int32		result;
-	// FunctionCall2
+	CALL_OTHER(177);
+}
 
-	elog(NOTICE, "%i + %i", arg1, arg2);
-	result = arg1 + arg2;
+Datum
+btint8posoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(463);
+}
 
-	/*
-	 * Overflow check.	If the inputs are of different signs then their sum
-	 * cannot overflow.  If the inputs are of the same sign, their sum had
-	 * better be that sign too.
-	 */
-	// if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-	// 	ereport(ERROR,
-	// 			(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-	// 			 errmsg("integer out of range")));
-
-	// elog(NOTICE, "btint4posoffset result: %i from arg1: %i, arg2: %i", result, arg1, arg2);
-	PG_RETURN_INT32(result);
+Datum
+btint2negoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(180);
 }
 
 Datum
 btint4negoffset(PG_FUNCTION_ARGS)
 {
-	int32		arg1 = PG_GETARG_INT32(0);
-	int32		arg2 = PG_GETARG_INT32(1);
-	int32		result;
+	CALL_OTHER(181);
+}
 
-	result = arg1 - arg2;
+Datum
+btint8negoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(464);
+}
 
-	/*
-	 * Overflow check.	If the inputs are of different signs then their sum
-	 * cannot overflow.  If the inputs are of the same sign, their sum had
-	 * better be that sign too.
-	 */
-	// if (SAMESIGN(arg1, arg2) && !SAMESIGN(result, arg1))
-	// 	ereport(ERROR,
-	// 			(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
-	// 			 errmsg("integer out of range")));
+Datum
+btfloat4posoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(204);
+}
 
-	// elog(NOTICE, "btint4posoffset result: %i from arg1: %i, arg2: %i", result, arg1, arg2);
-	PG_RETURN_INT32(result);
+Datum
+btfloat8posoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(218);
+}
+
+Datum
+btfloat4negoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(205);
+}
+
+Datum
+btfloat8negoffset(PG_FUNCTION_ARGS)
+{
+	CALL_OTHER(219);
 }

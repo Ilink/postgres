@@ -580,10 +580,29 @@ DATA(insert OID = 3129 ( btint2sortsupport PGNSP PGUID 12 1 0 0 0 f f f f t f i 
 DESCR("sort support");
 DATA(insert OID = 351 (  btint4cmp		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4cmp _null_ _null_ _null_ ));
 DESCR("less-equal-greater");
-DATA(insert OID = 352 (  btint4posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4posoffset _null_ _null_ _null_ ));
+
+DATA(insert OID = 5000 (  btint2posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "21 21" _null_ _null_ _null_ _null_ btint2posoffset _null_ _null_ _null_ ));
 DESCR("positive offset (like +)");
-DATA(insert OID = 353 (  btint4negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4negoffset _null_ _null_ _null_ ));
+DATA(insert OID = 5001 (  btint4posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4posoffset _null_ _null_ _null_ ));
+DESCR("positive offset (like +)");
+DATA(insert OID = 5002 (  btint8posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "20 20" _null_ _null_ _null_ _null_ btint8posoffset _null_ _null_ _null_ ));
+DESCR("positive offset (like +)");
+DATA(insert OID = 5003 (  btfloat4posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "700 700" _null_ _null_ _null_ _null_ btfloat4posoffset _null_ _null_ _null_ ));
 DESCR("negative offset (like -)");
+DATA(insert OID = 5004 (  btfloat8posoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "701 701" _null_ _null_ _null_ _null_ btfloat8posoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+DATA(insert OID = 5005 (  btint2negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "21 21" _null_ _null_ _null_ _null_ btint2negoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+DATA(insert OID = 5006 (  btint4negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "23 23" _null_ _null_ _null_ _null_ btint4negoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+DATA(insert OID = 5007 (  btint8negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "20 20" _null_ _null_ _null_ _null_ btint8negoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+DATA(insert OID = 5008 (  btfloat4negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "700 700" _null_ _null_ _null_ _null_ btfloat4negoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+DATA(insert OID = 5009 (  btfloat8negoffset   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "701 701" _null_ _null_ _null_ _null_ btfloat8negoffset _null_ _null_ _null_ ));
+DESCR("negative offset (like -)");
+
+
 DATA(insert OID = 3130 ( btint4sortsupport PGNSP PGUID 12 1 0 0 0 f f f f t f i 1 0 2278 "2281" _null_ _null_ _null_ _null_ btint4sortsupport _null_ _null_ _null_ ));
 DESCR("sort support");
 DATA(insert OID = 842 (  btint8cmp		   PGNSP PGUID 12 1 0 0 0 f f f f t f i 2 0 23 "20 20" _null_ _null_ _null_ _null_ btint8cmp _null_ _null_ _null_ ));

@@ -318,8 +318,18 @@ extern Datum bttextcmp(PG_FUNCTION_ARGS);
  *      stored in pg_amproc; most are defined in access/nbtree/nbtoffset.c
  *      
  */
+extern Datum btint2posoffset(PG_FUNCTION_ARGS);
 extern Datum btint4posoffset(PG_FUNCTION_ARGS);
+extern Datum btint8posoffset(PG_FUNCTION_ARGS);
+extern Datum btfloat4posoffset(PG_FUNCTION_ARGS);
+extern Datum btfloat8posoffset(PG_FUNCTION_ARGS);
+
+extern Datum btint2negoffset(PG_FUNCTION_ARGS);
 extern Datum btint4negoffset(PG_FUNCTION_ARGS);
+extern Datum btint8negoffset(PG_FUNCTION_ARGS);
+extern Datum btfloat4negoffset(PG_FUNCTION_ARGS);
+extern Datum btfloat8negoffset(PG_FUNCTION_ARGS);
+
 
 
 /*
