@@ -886,12 +886,13 @@ FROM tenk1 WHERE unique1 < 10 WINDOW w AS (order by four);
   10 |       7 |    3
 (10 rows)
 
+-- sort key and offsets must be of the same type
 SELECT sum(unique1) over (order by four range between 2::int8 preceding and 1::int2 preceding),
 	unique1, four
 FROM tenk1 WHERE unique1 < 10;
-ERROR:  RANGE PRECEDING is only supported with UNBOUNDED
+ERROR:  cannot compare sort key type and offset type in frame
 LINE 1: SELECT sum(unique1) over (order by four range between 2::int...
-                                                ^
+                                 ^
 SELECT first_value(unique1) over w,
 	nth_value(unique1, 2) over w AS nth_2,
 	last_value(unique1) over w, unique1, four
