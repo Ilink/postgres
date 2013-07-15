@@ -2372,56 +2372,6 @@ findWindowClause(List *wclist, const char *name)
 // }
 
 /*
- * transformFrameOffset
- *		Process a window frame offset expression
- */
-// static Node *
-// transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause)
-// {
-// 	const char *constructName = NULL;
-// 	Node	   *node;
-
-// 	/* Quick exit if no offset expression */
-// 	if (clause == NULL)
-// 		return NULL;
-
-// 	if (frameOptions & FRAMEOPTION_ROWS)
-// 	{
-// 		/* Transform the raw expression tree */
-// 		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_ROWS);
-
-// 		/*
-// 		 * Like LIMIT clause, simply coerce to int8
-// 		 */
-// 		constructName = "ROWS";
-// 		node = coerce_to_specific_type(pstate, node, INT8OID, constructName);
-// 	}
-// 	else if (frameOptions & FRAMEOPTION_RANGE)
-// 	{
-// 		/* Transform the raw expression tree */
-// 		node = transformExpr(pstate, clause, EXPR_KIND_WINDOW_FRAME_RANGE);
-
-// 		/*
-// 		 * this needs a lot of thought to decide how to support in the context
-// 		 * of Postgres' extensible datatype framework
-// 		 */
-// 		constructName = "RANGE";
-// 		/* error was already thrown by gram.y, this is just a backstop */
-// 		elog(ERROR, "window frame with value offset is not implemented");
-// 	}
-// 	else
-// 	{
-// 		Assert(false);
-// 		node = NULL;
-// 	}
-
-// 	/* Disallow variables in frame offsets */
-// 	checkExprIsVarFree(pstate, node, constructName);
-
-// 	return node;
-// }
-
-/*
  *	transformFrameOffset
  *
  * In ROWS mode, frame offset value is coerced to int8 like LIMIT/OFFSET.
@@ -2475,22 +2425,15 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		sort = (SortGroupClause *) linitial(orderClause);
 		sort_tle = get_sortgroupref_tle(sort->tleSortGroupRef, targetlist);
 		restype = exprType((Node *) sort_tle->expr);
-		/*
-		 * RANGE mode has interest only in if it's reverse or not.
-		 */
-		 // NOTE: this function no longer exists
-		// if(!get_compare_function_for_ordering_op(sort->sortop,
-		// 										 &cmpfunc,
-		// 										 &reverse))
-		// 	elog(ERROR, "operator %u is not a valid ordering operator",
-		// 		 sort->sortop);
 
-		/*
-		 * Since we don't have general definition for "addition" and
-		 * "subtraction" such like "greater" and "lesser" in btree,
-		 * just find "+" / "-" by string in default namespace.
-		 * But this compromise makes sense in many cases.
-		 */
+		if(restype != exprType(node))
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					errmsg("cannot compare sort key type and offset type in frame"),
+					parser_errposition(pstate, location)));
+		}
+
 		if (!reverse)
 		{
 			/*
@@ -2558,13 +2501,6 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 			}
 		}
 
-		/*
-		 * find the operator "+" or "-" for these data types
-		 */
-		 // TODO: this should not use this function
-		// *opoid = LookupOperName(pstate, list_make1(makeString(oper)),
-		// 						restype, exprType(node), false, location);
-
 		*cmpoid = InvalidOid;
 		*offsetOid = InvalidOid;
 
@@ -2575,59 +2511,34 @@ transformFrameOffset(ParseState *pstate, int frameOptions, Node *clause,
 		 *
 		 * Additionally, find the support function for offset.
 		 */
-		// if (OidIsValid(*opoid))
-		// {
-		 // TODO: replace this check with something else for support func?
-			Oid		oper_restype;
-			Oid		opfamily;
-			Oid		opcintype;
-			int16	strategy;
+		Oid		oper_restype;
+		Oid		opfamily;
+		Oid		opcintype;
+		int16	strategy;
+
+		/*
+		 * Find compare function by opfamily of sort operator.
+		 */
+		if (get_ordering_op_properties(sort->sortop,
+									   &opfamily, &opcintype, &strategy))
+		{
+			*cmpoid = get_opfamily_proc(opfamily,
+										restype,
+										restype,
+										BTORDER_PROC);
+
+			*offsetOid = get_opfamily_proc(opfamily,
+										restype,
+										restype,
+										offsetFuncType);
+		}
 
 
-			// oper_restype = opr_restype_byid(*opoid);
-
-			// oper_restype = opr_restype_byid(*opoid);
-			// if (!OidIsValid(oper_restype))		/* should not happen */
-				// elog(ERROR, "missing result type for %u", oper_restype);
-
-			/*
-			 * Find cmpare function by opfamily of sort operator.
-			 */
-			if (get_ordering_op_properties(sort->sortop,
-										   &opfamily, &opcintype, &strategy))
-			{
-				// this implies that we must use the sort type
-				// do we need another check beforehand?
-				*cmpoid = get_opfamily_proc(opfamily,
-											restype,
-											restype,
-											BTORDER_PROC);
-
-				/*
-				NOTE: this returns 352 and 353, which is correct!
-				but for some reason it is not correc ltater
-				*/
-				*offsetOid = get_opfamily_proc(opfamily,
-											restype,   // this part might be wrong
-											restype, 	// this part is wrong too
-											offsetFuncType);
-			}
-		// }
-
-		//TODO: update these
 		if (!OidIsValid(*cmpoid))
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 					errmsg("cannot compare sort key type and offset type in frame"),
 					parser_errposition(pstate, location)));
-
-		if (!OidIsValid(*offsetOid))
-			ereport(ERROR,
-					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-					errmsg("offset OID invalid. ?? cannot compare sort key type and offset type in frame"),
-					parser_errposition(pstate, location)));
-		// else
-		// 	elog(NOTICE, "Found offset OID: %i", *offsetOid);
 	}
 
 	// checkExprIsLevelStable(pstate, node, constructName);
