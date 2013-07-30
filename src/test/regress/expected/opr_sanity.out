@@ -1236,7 +1236,7 @@ WHERE p1.amprocfamily = p3.oid AND p3.opfmethod = p2.oid AND
 
 -- Detect missing pg_amproc entries: should have as many support functions
 -- as AM expects for each datatype combination supported by the opfamily.
--- btree/GiST/GIN each allow one optional support function, though.
+-- GiST/GIN each allow one optional support function, though.
 SELECT p1.amname, p2.opfname, p3.amproclefttype, p3.amprocrighttype
 FROM pg_am AS p1, pg_opfamily AS p2, pg_amproc AS p3
 WHERE p2.opfmethod = p1.oid AND p3.amprocfamily = p2.oid AND
@@ -1245,7 +1245,7 @@ WHERE p2.opfmethod = p1.oid AND p3.amprocfamily = p2.oid AND
            p4.amproclefttype = p3.amproclefttype AND
            p4.amprocrighttype = p3.amprocrighttype)
     NOT BETWEEN
-      (CASE WHEN p1.amname IN ('btree', 'gist', 'gin') THEN p1.amsupport - 1
+      (CASE WHEN p1.amname IN ('btree', 'gist', 'gin') THEN p1.amsupport - 3
             ELSE p1.amsupport END)
       AND p1.amsupport;
  amname | opfname | amproclefttype | amprocrighttype 
