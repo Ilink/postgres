@@ -1011,7 +1011,7 @@ SELECT p1.amprocfamily, p1.amprocnum,
 FROM pg_amproc AS p1, pg_proc AS p2, pg_opfamily AS p3
 WHERE p3.opfmethod = (SELECT oid FROM pg_am WHERE amname = 'btree')
     AND p1.amprocfamily = p3.oid AND p1.amproc = p2.oid AND
-    (CASE WHEN amprocnum = 1
+    (CASE WHEN amprocnum = 1 OR amprocnum = 3 OR amprocnum = 4
           THEN prorettype != 'int4'::regtype OR proretset OR pronargs != 2
                OR proargtypes[0] != amproclefttype
                OR proargtypes[1] != amprocrighttype
