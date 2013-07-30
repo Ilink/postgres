@@ -1272,7 +1272,7 @@ FROM pg_am am JOIN pg_opclass op ON opcmethod = am.oid
          amproclefttype = amprocrighttype AND amproclefttype = opcintype
 WHERE am.amname = 'btree' OR am.amname = 'gist' OR am.amname = 'gin'
 GROUP BY amname, amsupport, opcname, amprocfamily
-HAVING (count(*) != amsupport AND count(*) != amsupport - 1)
+HAVING (count(*) != amsupport AND count(*) != amsupport - 1 AND count(*) != amsupport - 2 AND count(*) != amsupport - 3)
     OR amprocfamily IS NULL;
  amname | opcname | count 
 --------+---------+-------

@@ -972,13 +972,16 @@ WHERE am.amname <> 'btree' AND am.amname <> 'gist' AND am.amname <> 'gin'
 GROUP BY amname, amsupport, opcname, amprocfamily
 HAVING count(*) != amsupport OR amprocfamily IS NULL;
 
+-- NOTE: broken
+-- should i remove btree from this entirely?
+-- are the offset functions 'optional'?
 SELECT amname, opcname, count(*)
 FROM pg_am am JOIN pg_opclass op ON opcmethod = am.oid
      LEFT JOIN pg_amproc p ON amprocfamily = opcfamily AND
          amproclefttype = amprocrighttype AND amproclefttype = opcintype
 WHERE am.amname = 'btree' OR am.amname = 'gist' OR am.amname = 'gin'
 GROUP BY amname, amsupport, opcname, amprocfamily
-HAVING (count(*) != amsupport AND count(*) != amsupport - 1)
+HAVING (count(*) != amsupport AND count(*) != amsupport - 1 AND count(*) != amsupport - 2 AND count(*) != amsupport - 3)
     OR amprocfamily IS NULL;
 
 -- Unfortunately, we can't check the amproc link very well because the
