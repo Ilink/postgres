@@ -972,9 +972,6 @@ WHERE am.amname <> 'btree' AND am.amname <> 'gist' AND am.amname <> 'gin'
 GROUP BY amname, amsupport, opcname, amprocfamily
 HAVING count(*) != amsupport OR amprocfamily IS NULL;
 
--- NOTE: broken
--- should i remove btree from this entirely?
--- are the offset functions 'optional'?
 SELECT amname, opcname, count(*)
 FROM pg_am am JOIN pg_opclass op ON opcmethod = am.oid
      LEFT JOIN pg_amproc p ON amprocfamily = opcfamily AND
@@ -1009,8 +1006,8 @@ WHERE p1.amprocfamily = p3.oid AND p4.amprocfamily = p6.oid AND
 -- or sortsupport(internal) returns void.
 
 SELECT p1.amprocfamily, p1.amprocnum,
-	p2.oid, p2.proname,
-	p3.opfname
+    p2.oid, p2.proname,
+    p3.opfname
 FROM pg_amproc AS p1, pg_proc AS p2, pg_opfamily AS p3
 WHERE p3.opfmethod = (SELECT oid FROM pg_am WHERE amname = 'btree')
     AND p1.amprocfamily = p3.oid AND p1.amproc = p2.oid AND
