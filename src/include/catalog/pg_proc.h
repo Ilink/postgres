@@ -1999,10 +1999,10 @@ DESCR("type of the argument");
 DATA(insert OID = 3162 (  pg_collation_for		PGNSP PGUID 12 1 0 0 0 f f f f f f s 1 0   25 "2276" _null_ _null_ _null_ _null_  pg_collation_for _null_ _null_ _null_ ));
 DESCR("collation of the argument; implementation of the COLLATION FOR expression");
 
-DATA(insert OID = 3842 (  pg_view_is_insertable PGNSP PGUID 12 10 0 0 0 f f f f t f s 1 0 16 "26" _null_ _null_ _null_ _null_ pg_view_is_insertable _null_ _null_ _null_ ));
-DESCR("is a view insertable-into");
-DATA(insert OID = 3843 (  pg_view_is_updatable	PGNSP PGUID 12 10 0 0 0 f f f f t f s 1 0 16 "26" _null_ _null_ _null_ _null_ pg_view_is_updatable _null_ _null_ _null_ ));
-DESCR("is a view updatable");
+DATA(insert OID = 3842 (  pg_relation_is_updatable	PGNSP PGUID 12 10 0 0 0 f f f f t f s 2 0 23 "2205 16" _null_ _null_ _null_ _null_ pg_relation_is_updatable _null_ _null_ _null_ ));
+DESCR("is a relation insertable/updatable/deletable");
+DATA(insert OID = 3843 (  pg_column_is_updatable	PGNSP PGUID 12 10 0 0 0 f f f f t f s 3 0 16 "2205 21 16" _null_ _null_ _null_ _null_ pg_column_is_updatable _null_ _null_ _null_ ));
+DESCR("is a column updatable");
 
 /* Deferrable unique constraint trigger */
 DATA(insert OID = 1250 (  unique_key_recheck	PGNSP PGUID 12 1 0 0 0 f f f f t f v 0 0 2279 "" _null_ _null_ _null_ _null_ unique_key_recheck _null_ _null_ _null_ ));
@@ -2616,6 +2616,8 @@ DATA(insert OID = 2878 (  pg_stat_get_live_tuples	PGNSP PGUID 12 1 0 0 0 f f f f
 DESCR("statistics: number of live tuples");
 DATA(insert OID = 2879 (  pg_stat_get_dead_tuples	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_dead_tuples _null_ _null_ _null_ ));
 DESCR("statistics: number of dead tuples");
+DATA(insert OID = 3177 (  pg_stat_get_mod_since_analyze	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_mod_since_analyze _null_ _null_ _null_ ));
+DESCR("statistics: number of tuples changed since last analyze");
 DATA(insert OID = 1934 (  pg_stat_get_blocks_fetched	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_blocks_fetched _null_ _null_ _null_ ));
 DESCR("statistics: number of blocks fetched");
 DATA(insert OID = 1935 (  pg_stat_get_blocks_hit		PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_blocks_hit _null_ _null_ _null_ ));
@@ -3469,6 +3471,8 @@ DATA(insert OID = 2998 ( pg_indexes_size		PGNSP PGUID 12 1 0 0 0 f f f f t f v 1
 DESCR("disk space usage for all indexes attached to the specified table");
 DATA(insert OID = 2999 ( pg_relation_filenode	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 26 "2205" _null_ _null_ _null_ _null_ pg_relation_filenode _null_ _null_ _null_ ));
 DESCR("filenode identifier of relation");
+DATA(insert OID = 3454 ( pg_filenode_relation PGNSP PGUID 12 1 0 0 0 f f f f t f s 2 0 2205 "26 26" _null_ _null_ _null_ _null_ pg_filenode_relation _null_ _null_ _null_ ));
+DESCR("relation OID for filenode and tablespace");
 DATA(insert OID = 3034 ( pg_relation_filepath	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 25 "2205" _null_ _null_ _null_ _null_ pg_relation_filepath _null_ _null_ _null_ ));
 DESCR("file path of relation");
 

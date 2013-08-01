@@ -21,6 +21,7 @@
 #include "access/sysattr.h"
 #include "access/tuptoaster.h"
 #include "access/valid.h"
+#include "access/xact.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
@@ -1067,6 +1068,9 @@ SearchCatCache(CatCache *cache,
 	SysScanDesc scandesc;
 	HeapTuple	ntp;
 
+	/* Make sure we're in a xact, even if this ends up being a cache hit */
+	Assert(IsTransactionState());
+
 	/*
 	 * one-time startup overhead for each cache
 	 */
@@ -1182,7 +1186,7 @@ SearchCatCache(CatCache *cache,
 	scandesc = systable_beginscan(relation,
 								  cache->cc_indexoid,
 								  IndexScanOK(cache, cur_skey),
-								  SnapshotNow,
+								  NULL,
 								  cache->cc_nkeys,
 								  cur_skey);
 
@@ -1461,7 +1465,7 @@ SearchCatCacheList(CatCache *cache,
 		scandesc = systable_beginscan(relation,
 									  cache->cc_indexoid,
 									  IndexScanOK(cache, cur_skey),
-									  SnapshotNow,
+									  NULL,
 									  nkeys,
 									  cur_skey);
 

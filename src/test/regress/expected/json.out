@@ -921,8 +921,8 @@ ERROR:  cannot call json_populate_recordset on a nested object
 select * from json_populate_recordset(row('def',99,null)::jpop,'[{"c":[100,200,300],"x":43.2},{"a":{"z":true},"b":3,"c":"2012-01-20 10:42:53"}]') q;
 ERROR:  cannot call json_populate_recordset on a nested object
 -- handling of unicode surrogate pairs
-select json '{ "a":  "\ud83d\ude04\ud83d\udc36" }' -> 'a' as correct;
-          correct           
+select json '{ "a":  "\ud83d\ude04\ud83d\udc36" }' -> 'a' as correct_in_utf8;
+      correct_in_utf8       
 ----------------------------
  "\ud83d\ude04\ud83d\udc36"
 (1 row)
@@ -943,3 +943,22 @@ select json '{ "a":  "\ude04X" }' -> 'a'; -- orphan low surrogate
 ERROR:  invalid input syntax for type json
 DETAIL:  low order surrogate must follow a high order surrogate.
 CONTEXT:  JSON data, line 1: { "a":...
+--handling of simple unicode escapes
+select json '{ "a":  "the Copyright \u00a9 sign" }' ->> 'a' as correct_in_utf8;
+   correct_in_utf8    
+----------------------
+ the Copyright © sign
+(1 row)
+
+select json '{ "a":  "dollar \u0024 character" }' ->> 'a' as correct_everywhere;
+ correct_everywhere 
+--------------------
+ dollar $ character
+(1 row)
+
+select json '{ "a":  "null \u0000 escape" }' ->> 'a' as not_unescaped;
+   not_unescaped    
+--------------------
+ null \u0000 escape
+(1 row)
+

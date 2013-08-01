@@ -27,7 +27,7 @@
 # Memory units:  kB = kilobytes        Time units:  ms  = milliseconds
 #                MB = megabytes                     s   = seconds
 #                GB = gigabytes                     min = minutes
-#                                                   h   = hours
+#                TB = terabytes                     h   = hours
 #                                                   d   = days
 
 
@@ -153,6 +153,7 @@
 # - Asynchronous Behavior -
 
 #effective_io_concurrency = 1		# 1-1000; 0 disables prefetching
+#max_worker_processes = 8
 
 
 #------------------------------------------------------------------------------

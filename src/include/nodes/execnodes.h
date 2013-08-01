@@ -304,6 +304,8 @@ typedef struct JunkFilter
  *		TrigInstrument			optional runtime measurements for triggers
  *		FdwRoutine				FDW callback functions, if foreign table
  *		FdwState				available to save private state of FDW
+ *		WithCheckOptions		list of WithCheckOption's for views
+ *		WithCheckOptionExprs	list of WithCheckOption expr states
  *		ConstraintExprs			array of constraint-checking expr states
  *		junkFilter				for removing junk attributes from tuples
  *		projectReturning		for computing a RETURNING list
@@ -323,6 +325,8 @@ typedef struct ResultRelInfo
 	Instrumentation *ri_TrigInstrument;
 	struct FdwRoutine *ri_FdwRoutine;
 	void	   *ri_FdwState;
+	List	   *ri_WithCheckOptions;
+	List	   *ri_WithCheckOptionExprs;
 	List	  **ri_ConstraintExprs;
 	JunkFilter *ri_junkFilter;
 	ProjectionInfo *ri_projectReturning;
@@ -585,6 +589,7 @@ typedef struct AggrefExprState
 {
 	ExprState	xprstate;
 	List	   *args;			/* states of argument expressions */
+	ExprState  *aggfilter;		/* FILTER expression */
 	int			aggno;			/* ID number for agg within its plan node */
 } AggrefExprState;
 
@@ -596,6 +601,7 @@ typedef struct WindowFuncExprState
 {
 	ExprState	xprstate;
 	List	   *args;			/* states of argument expressions */
+	ExprState  *aggfilter;		/* FILTER expression */
 	int			wfuncno;		/* ID number for wfunc within its plan node */
 } WindowFuncExprState;
 
@@ -1390,7 +1396,10 @@ typedef struct SubqueryScanState
  *		function appearing in FROM (typically a function returning set).
  *
  *		eflags				node's capability flags
- *		tupdesc				expected return tuple description
+ *		ordinal				column value for WITH ORDINALITY
+ *		scan_tupdesc		scan tuple descriptor 
+ *		func_tupdesc		function tuple descriptor 
+ *		func_slot			function result slot, or null
  *		tuplestorestate		private state of tuplestore.c
  *		funcexpr			state for function expression being evaluated
  * ----------------
@@ -1399,7 +1408,10 @@ typedef struct FunctionScanState
 {
 	ScanState	ss;				/* its first field is NodeTag */
 	int			eflags;
-	TupleDesc	tupdesc;
+	int64       ordinal;
+	TupleDesc	scan_tupdesc;
+	TupleDesc	func_tupdesc;
+	TupleTableSlot *func_slot;
 	Tuplestorestate *tuplestorestate;
 	ExprState  *funcexpr;
 } FunctionScanState;

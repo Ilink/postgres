@@ -401,7 +401,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <node>	columnDef columnOptions
 %type <defelt>	def_elem reloption_elem old_aggr_elem
 %type <node>	def_arg columnElem where_clause where_or_current_clause
-				a_expr b_expr c_expr func_expr AexprConst indirection_el
+				a_expr b_expr c_expr AexprConst indirection_el
 				columnref in_expr having_clause func_table array_expr
 				ExclusionWhereClause
 %type <list>	ExclusionConstraintList ExclusionConstraintElem
@@ -470,7 +470,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <list>	constraints_set_list
 %type <boolean> constraints_set_mode
 %type <str>		OptTableSpace OptConsTableSpace OptTableSpaceOwner
-%type <list>	opt_check_option
+%type <ival>	opt_check_option
 
 %type <str>		opt_provider security_label
 
@@ -481,6 +481,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <ival>	document_or_content
 %type <boolean> xml_whitespace_option
 
+%type <node>	func_application func_expr_common_subexpr
+%type <node>	func_expr func_expr_windowless
 %type <node>	common_table_expr
 %type <with>	with_clause opt_with_clause
 %type <list>	cte_list
@@ -490,6 +492,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 				opt_frame_clause frame_extent frame_bound
 %type <str>		opt_existing_window_name
 %type <boolean> opt_if_not_exists
+%type <node>    filter_clause
 
 /*
  * Non-keyword token types.  These are hard-wired into the "flex" lexer.
@@ -536,8 +539,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	EXCLUDE EXCLUDING EXCLUSIVE EXECUTE EXISTS EXPLAIN
 	EXTENSION EXTERNAL EXTRACT
 
-	FALSE_P FAMILY FETCH FIRST_P FLOAT_P FOLLOWING FOR FORCE FOREIGN FORWARD
-	FREEZE FROM FULL FUNCTION FUNCTIONS
+	FALSE_P FAMILY FETCH FILTER FIRST_P FLOAT_P FOLLOWING FOR
+	FORCE FOREIGN FORWARD FREEZE FROM FULL FUNCTION FUNCTIONS
 
 	GLOBAL GRANT GRANTED GREATEST GROUP_P
 
@@ -563,7 +566,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	NULLS_P NUMERIC
 
 	OBJECT_P OF OFF OFFSET OIDS ON ONLY OPERATOR OPTION OPTIONS OR
-	ORDER OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER
+	ORDER ORDINALITY OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER
 
 	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
@@ -606,8 +609,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
  * list and so can never be entered directly.  The filter in parser.c
  * creates these tokens when required.
  */
-%token			NULLS_FIRST NULLS_LAST WITH_TIME
-
+%token			NULLS_FIRST NULLS_LAST WITH_ORDINALITY WITH_TIME
 
 /* Precedence: lowest to highest */
 %nonassoc	SET				/* see relation_expr_opt_alias */
@@ -1939,6 +1941,21 @@ alter_table_cmd:
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 					n->subtype = AT_AddConstraint;
 					n->def = $2;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> ALTER CONSTRAINT ... */
+			| ALTER CONSTRAINT name ConstraintAttributeSpec
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					Constraint *c = makeNode(Constraint);
+					n->subtype = AT_AlterConstraint;
+					n->def = (Node *) c;
+					c->contype = CONSTR_FOREIGN; /* others not supported, yet */
+					c->conname = $3;
+					processCASbits($4, @4, "ALTER CONSTRAINT statement",
+									&c->deferrable,
+									&c->initdeferred,
+									NULL, NULL, yyscanner);
 					$$ = (Node *)n;
 				}
 			/* ALTER TABLE <name> VALIDATE CONSTRAINT ... */
@@ -3284,11 +3301,12 @@ OptNoLog:	UNLOGGED					{ $$ = RELPERSISTENCE_UNLOGGED; }
  *****************************************************************************/
 
 RefreshMatViewStmt:
-			REFRESH MATERIALIZED VIEW qualified_name opt_with_data
+			REFRESH MATERIALIZED VIEW opt_concurrently qualified_name opt_with_data
 				{
 					RefreshMatViewStmt *n = makeNode(RefreshMatViewStmt);
-					n->relation = $4;
-					n->skipData = !($5);
+					n->concurrent = $4;
+					n->relation = $5;
+					n->skipData = !($6);
 					$$ = (Node *) n;
 				}
 		;
@@ -6132,7 +6150,7 @@ index_elem:	ColId opt_collate opt_class opt_asc_desc opt_nulls_order
 					$$->ordering = $4;
 					$$->nulls_ordering = $5;
 				}
-			| func_expr opt_collate opt_class opt_asc_desc opt_nulls_order
+			| func_expr_windowless opt_collate opt_class opt_asc_desc opt_nulls_order
 				{
 					$$ = makeNode(IndexElem);
 					$$->name = NULL;
@@ -7976,6 +7994,7 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->query = $8;
 					n->replace = false;
 					n->options = $6;
+					n->withCheckOption = $9;
 					$$ = (Node *) n;
 				}
 		| CREATE OR REPLACE OptTemp VIEW qualified_name opt_column_list opt_reloptions
@@ -7988,10 +8007,11 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->query = $10;
 					n->replace = true;
 					n->options = $8;
+					n->withCheckOption = $11;
 					$$ = (Node *) n;
 				}
 		| CREATE OptTemp RECURSIVE VIEW qualified_name '(' columnList ')' opt_reloptions
-				AS SelectStmt
+				AS SelectStmt opt_check_option
 				{
 					ViewStmt *n = makeNode(ViewStmt);
 					n->view = $5;
@@ -8000,10 +8020,16 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->query = makeRecursiveViewSelect(n->view->relname, n->aliases, $11);
 					n->replace = false;
 					n->options = $9;
+					n->withCheckOption = $12;
+					if (n->withCheckOption != NO_CHECK_OPTION)
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("WITH CHECK OPTION not supported on recursive views"),
+								 parser_errposition(@12)));
 					$$ = (Node *) n;
 				}
 		| CREATE OR REPLACE OptTemp RECURSIVE VIEW qualified_name '(' columnList ')' opt_reloptions
-				AS SelectStmt
+				AS SelectStmt opt_check_option
 				{
 					ViewStmt *n = makeNode(ViewStmt);
 					n->view = $7;
@@ -8012,30 +8038,21 @@ ViewStmt: CREATE OptTemp VIEW qualified_name opt_column_list opt_reloptions
 					n->query = makeRecursiveViewSelect(n->view->relname, n->aliases, $13);
 					n->replace = true;
 					n->options = $11;
+					n->withCheckOption = $14;
+					if (n->withCheckOption != NO_CHECK_OPTION)
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("WITH CHECK OPTION not supported on recursive views"),
+								 parser_errposition(@14)));
 					$$ = (Node *) n;
 				}
 		;
 
 opt_check_option:
-		WITH CHECK OPTION
-				{
-					ereport(ERROR,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("WITH CHECK OPTION is not implemented")));
-				}
-		| WITH CASCADED CHECK OPTION
-				{
-					ereport(ERROR,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("WITH CHECK OPTION is not implemented")));
-				}
-		| WITH LOCAL CHECK OPTION
-				{
-					ereport(ERROR,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("WITH CHECK OPTION is not implemented")));
-				}
-		| /* EMPTY */							{ $$ = NIL; }
+		WITH CHECK OPTION				{ $$ = CASCADED_CHECK_OPTION; }
+		| WITH CASCADED CHECK OPTION	{ $$ = CASCADED_CHECK_OPTION; }
+		| WITH LOCAL CHECK OPTION		{ $$ = LOCAL_CHECK_OPTION; }
+		| /* EMPTY */					{ $$ = NO_CHECK_OPTION; }
 		;
 
 /*****************************************************************************
@@ -9570,18 +9587,40 @@ table_ref:	relation_expr opt_alias_clause
 				{
 					RangeFunction *n = makeNode(RangeFunction);
 					n->lateral = false;
+					n->ordinality = false;
 					n->funccallnode = $1;
 					n->alias = linitial($2);
 					n->coldeflist = lsecond($2);
+					$$ = (Node *) n;
+				}
+			| func_table WITH_ORDINALITY func_alias_clause
+				{
+					RangeFunction *n = makeNode(RangeFunction);
+					n->lateral = false;
+					n->ordinality = true;
+					n->funccallnode = $1;
+					n->alias = linitial($3);
+					n->coldeflist = lsecond($3);
 					$$ = (Node *) n;
 				}
 			| LATERAL_P func_table func_alias_clause
 				{
 					RangeFunction *n = makeNode(RangeFunction);
 					n->lateral = true;
+					n->ordinality = false;
 					n->funccallnode = $2;
 					n->alias = linitial($3);
 					n->coldeflist = lsecond($3);
+					$$ = (Node *) n;
+				}
+			| LATERAL_P func_table WITH_ORDINALITY func_alias_clause
+				{
+					RangeFunction *n = makeNode(RangeFunction);
+					n->lateral = true;
+					n->ordinality = true;
+					n->funccallnode = $2;
+					n->alias = linitial($4);
+					n->coldeflist = lsecond($4);
 					$$ = (Node *) n;
 				}
 			| select_with_parens opt_alias_clause
@@ -9894,8 +9933,7 @@ relation_expr_opt_alias: relation_expr					%prec UMINUS
 				}
 		;
 
-
-func_table: func_expr								{ $$ = $1; }
+func_table: func_expr_windowless					{ $$ = $1; }
 		;
 
 
@@ -10487,16 +10525,9 @@ a_expr:		c_expr									{ $$ = $1; }
 				}
 			| a_expr AT TIME ZONE a_expr			%prec AT
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("timezone");
-					n->args = list_make2($5, $1);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
-					$$ = (Node *) n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("timezone"),
+											   list_make2($5, $1),
+											   @2);
 				}
 		/*
 		 * These operators must be called out explicitly in order to make use
@@ -10548,113 +10579,65 @@ a_expr:		c_expr									{ $$ = $1; }
 				{ $$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~~", $1, $3, @2); }
 			| a_expr LIKE a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("like_escape");
-					n->args = list_make2($3, $5);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("like_escape"),
+											   list_make2($3, $5),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~~", $1, (Node *) n, @2);
 				}
 			| a_expr NOT LIKE a_expr
 				{ $$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~~", $1, $4, @2); }
 			| a_expr NOT LIKE a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("like_escape");
-					n->args = list_make2($4, $6);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("like_escape"),
+											   list_make2($4, $6),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~~", $1, (Node *) n, @2);
 				}
 			| a_expr ILIKE a_expr
 				{ $$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~~*", $1, $3, @2); }
 			| a_expr ILIKE a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("like_escape");
-					n->args = list_make2($3, $5);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("like_escape"),
+											   list_make2($3, $5),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~~*", $1, (Node *) n, @2);
 				}
 			| a_expr NOT ILIKE a_expr
 				{ $$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~~*", $1, $4, @2); }
 			| a_expr NOT ILIKE a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("like_escape");
-					n->args = list_make2($4, $6);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("like_escape"),
+											   list_make2($4, $6),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~~*", $1, (Node *) n, @2);
 				}
 
 			| a_expr SIMILAR TO a_expr				%prec SIMILAR
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("similar_escape");
-					n->args = list_make2($4, makeNullAConst(-1));
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("similar_escape"),
+											   list_make2($4, makeNullAConst(-1)),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~", $1, (Node *) n, @2);
 				}
 			| a_expr SIMILAR TO a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("similar_escape");
-					n->args = list_make2($4, $6);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("similar_escape"),
+											   list_make2($4, $6),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "~", $1, (Node *) n, @2);
 				}
 			| a_expr NOT SIMILAR TO a_expr			%prec SIMILAR
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("similar_escape");
-					n->args = list_make2($5, makeNullAConst(-1));
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("similar_escape"),
+											   list_make2($5, makeNullAConst(-1)),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~", $1, (Node *) n, @2);
 				}
 			| a_expr NOT SIMILAR TO a_expr ESCAPE a_expr
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("similar_escape");
-					n->args = list_make2($5, $7);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @2;
+					FuncCall *n = makeFuncCall(SystemFuncName("similar_escape"),
+											   list_make2($5, $7),
+											   @2);
 					$$ = (Node *) makeSimpleA_Expr(AEXPR_OP, "!~", $1, (Node *) n, @2);
 				}
 
@@ -11079,110 +11062,50 @@ c_expr:		columnref								{ $$ = $1; }
 				}
 		;
 
-/*
- * func_expr is split out from c_expr just so that we have a classification
- * for "everything that is a function call or looks like one".  This isn't
- * very important, but it saves us having to document which variants are
- * legal in the backwards-compatible functional-index syntax for CREATE INDEX.
- * (Note that many of the special SQL functions wouldn't actually make any
- * sense as functional index entries, but we ignore that consideration here.)
- */
-func_expr:	func_name '(' ')' over_clause
+func_application: func_name '(' ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = $4;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall($1, NIL, @1);
 				}
-			| func_name '(' func_arg_list ')' over_clause
+			| func_name '(' func_arg_list ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = $5;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall($1, $3, @1);
 				}
-			| func_name '(' VARIADIC func_arg_expr ')' over_clause
+			| func_name '(' VARIADIC func_arg_expr ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = list_make1($4);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
+					FuncCall *n = makeFuncCall($1, list_make1($4), @1);
 					n->func_variadic = TRUE;
-					n->over = $6;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| func_name '(' func_arg_list ',' VARIADIC func_arg_expr ')' over_clause
+			| func_name '(' func_arg_list ',' VARIADIC func_arg_expr ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = lappend($3, $6);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
+					FuncCall *n = makeFuncCall($1, lappend($3, $6), @1);
 					n->func_variadic = TRUE;
-					n->over = $8;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| func_name '(' func_arg_list sort_clause ')' over_clause
+			| func_name '(' func_arg_list sort_clause ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $3;
+					FuncCall *n = makeFuncCall($1, $3, @1);
 					n->agg_order = $4;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = $6;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| func_name '(' ALL func_arg_list opt_sort_clause ')' over_clause
+			| func_name '(' ALL func_arg_list opt_sort_clause ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $4;
+					FuncCall *n = makeFuncCall($1, $4, @1);
 					n->agg_order = $5;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
 					/* Ideally we'd mark the FuncCall node to indicate
 					 * "must be an aggregate", but there's no provision
 					 * for that in FuncCall at the moment.
 					 */
-					n->func_variadic = FALSE;
-					n->over = $7;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| func_name '(' DISTINCT func_arg_list opt_sort_clause ')' over_clause
+			| func_name '(' DISTINCT func_arg_list opt_sort_clause ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = $4;
+					FuncCall *n = makeFuncCall($1, $4, @1);
 					n->agg_order = $5;
-					n->agg_star = FALSE;
 					n->agg_distinct = TRUE;
-					n->func_variadic = FALSE;
-					n->over = $7;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| func_name '(' '*' ')' over_clause
+			| func_name '(' '*' ')'
 				{
 					/*
 					 * We consider AGGREGATE(*) to invoke a parameterless
@@ -11194,29 +11117,53 @@ func_expr:	func_name '(' ')' over_clause
 					 * so that later processing can detect what the argument
 					 * really was.
 					 */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = $1;
-					n->args = NIL;
-					n->agg_order = NIL;
+					FuncCall *n = makeFuncCall($1, NIL, @1);
 					n->agg_star = TRUE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = $5;
-					n->location = @1;
 					$$ = (Node *)n;
 				}
-			| COLLATION FOR '(' a_expr ')'
+        ;
+
+
+/*
+ * func_expr and its cousin func_expr_windowless is split out from c_expr just 
+ * so that we have classifications for "everything that is a function call or 
+ * looks like one".  This isn't very important, but it saves us having to document 
+ * which variants are legal in the backwards-compatible functional-index syntax 
+ * for CREATE INDEX.
+ * (Note that many of the special SQL functions wouldn't actually make any
+ * sense as functional index entries, but we ignore that consideration here.)
+ */
+func_expr: func_application filter_clause over_clause 
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("pg_collation_for");
-					n->args = list_make1($4);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+              		FuncCall *n = (FuncCall*)$1;
+					n->agg_filter = $2;
+					n->over = $3;
+					$$ = (Node*)n;
+				} 
+			| func_expr_common_subexpr
+				{ $$ = $1; }
+		;
+
+/* 
+ * As func_expr but does not accept WINDOW functions directly (they
+ * can still be contained in arguments for functions etc.)
+ * Use this when window expressions are not allowed, so to disambiguate 
+ * the grammar. (e.g. in CREATE INDEX)
+ */
+func_expr_windowless: 
+			func_application						{ $$ = $1; }
+			| func_expr_common_subexpr 				{ $$ = $1; }
+		;
+
+/*
+ * Special expression 
+ */
+func_expr_common_subexpr:	
+			COLLATION FOR '(' a_expr ')'
+				{
+					$$ = (Node *) makeFuncCall(SystemFuncName("pg_collation_for"),
+											   list_make1($4),
+											   @1);
 				}
 			| CURRENT_DATE
 				{
@@ -11268,16 +11215,7 @@ func_expr:	func_name '(' ')' over_clause
 					 * Translate as "now()", since we have a function that
 					 * does exactly what is needed.
 					 */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("now");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("now"), NIL, @1);
 				}
 			| CURRENT_TIMESTAMP '(' Iconst ')'
 				{
@@ -11340,96 +11278,33 @@ func_expr:	func_name '(' ')' over_clause
 				}
 			| CURRENT_ROLE
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("current_user");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("current_user"), NIL, @1);
 				}
 			| CURRENT_USER
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("current_user");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("current_user"), NIL, @1);
 				}
 			| SESSION_USER
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("session_user");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("session_user"), NIL, @1);
 				}
 			| USER
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("current_user");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("current_user"), NIL, @1);
 				}
 			| CURRENT_CATALOG
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("current_database");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("current_database"), NIL, @1);
 				}
 			| CURRENT_SCHEMA
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("current_schema");
-					n->args = NIL;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("current_schema"), NIL, @1);
 				}
 			| CAST '(' a_expr AS Typename ')'
 				{ $$ = makeTypeCast($3, $5, @1); }
 			| EXTRACT '(' extract_list ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("date_part");
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("date_part"), $3, @1);
 				}
 			| OVERLAY '(' overlay_list ')'
 				{
@@ -11438,46 +11313,19 @@ func_expr:	func_name '(' ')' over_clause
 					 * overlay(A PLACING B FROM C) is converted to
 					 * overlay(A, B, C)
 					 */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("overlay");
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("overlay"), $3, @1);
 				}
 			| POSITION '(' position_list ')'
 				{
 					/* position(A in B) is converted to position(B, A) */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("position");
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("position"), $3, @1);
 				}
 			| SUBSTRING '(' substr_list ')'
 				{
 					/* substring(A from B for C) is converted to
 					 * substring(A, B, C) - thomas 2000-11-28
 					 */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("substring");
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("substring"), $3, @1);
 				}
 			| TREAT '(' a_expr AS Typename ')'
 				{
@@ -11486,75 +11334,32 @@ func_expr:	func_name '(' ')' over_clause
 					 * In SQL99, this is intended for use with structured UDTs,
 					 * but let's make this a generally useful form allowing stronger
 					 * coercions than are handled by implicit casting.
-					 */
-					FuncCall *n = makeNode(FuncCall);
-					/* Convert SystemTypeName() to SystemFuncName() even though
+					 *
+					 * Convert SystemTypeName() to SystemFuncName() even though
 					 * at the moment they result in the same thing.
 					 */
-					n->funcname = SystemFuncName(((Value *)llast($5->names))->val.str);
-					n->args = list_make1($3);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName(((Value *)llast($5->names))->val.str),
+											    list_make1($3),
+											    @1);
 				}
 			| TRIM '(' BOTH trim_list ')'
 				{
 					/* various trim expressions are defined in SQL
 					 * - thomas 1997-07-19
 					 */
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("btrim");
-					n->args = $4;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("btrim"), $4, @1);
 				}
 			| TRIM '(' LEADING trim_list ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("ltrim");
-					n->args = $4;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("ltrim"), $4, @1);
 				}
 			| TRIM '(' TRAILING trim_list ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("rtrim");
-					n->args = $4;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("rtrim"), $4, @1);
 				}
 			| TRIM '(' trim_list ')'
 				{
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("btrim");
-					n->args = $3;
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("btrim"), $3, @1);
 				}
 			| NULLIF '(' a_expr ',' a_expr ')'
 				{
@@ -11607,16 +11412,7 @@ func_expr:	func_name '(' ')' over_clause
 				{
 					/* xmlexists(A PASSING [BY REF] B [BY REF]) is
 					 * converted to xmlexists(A, B)*/
-					FuncCall *n = makeNode(FuncCall);
-					n->funcname = SystemFuncName("xmlexists");
-					n->args = list_make2($3, $4);
-					n->agg_order = NIL;
-					n->agg_star = FALSE;
-					n->agg_distinct = FALSE;
-					n->func_variadic = FALSE;
-					n->over = NULL;
-					n->location = @1;
-					$$ = (Node *)n;
+					$$ = (Node *) makeFuncCall(SystemFuncName("xmlexists"), list_make2($3, $4), @1);
 				}
 			| XMLFOREST '(' xml_attribute_list ')'
 				{
@@ -11751,6 +11547,11 @@ window_definition:
 					$$ = n;
 				}
 		;
+
+filter_clause:
+             FILTER '(' WHERE a_expr ')'            { $$ = $4; }
+             | /*EMPTY*/                            { $$ = NULL; }
+         ;
 
 over_clause: OVER window_specification
 				{ $$ = $2; }
@@ -12752,6 +12553,7 @@ unreserved_keyword:
 			| EXTENSION
 			| EXTERNAL
 			| FAMILY
+			| FILTER
 			| FIRST_P
 			| FOLLOWING
 			| FORCE
@@ -12820,6 +12622,8 @@ unreserved_keyword:
 			| OPERATOR
 			| OPTION
 			| OPTIONS
+			| ORDINALITY
+			| OVER
 			| OWNED
 			| OWNER
 			| PARSER
@@ -13018,7 +12822,6 @@ type_func_name_keyword:
 			| NATURAL
 			| NOTNULL
 			| OUTER_P
-			| OVER
 			| OVERLAPS
 			| RIGHT
 			| SIMILAR
@@ -13298,9 +13101,7 @@ makeBoolAConst(bool state, int location)
 static FuncCall *
 makeOverlaps(List *largs, List *rargs, int location, core_yyscan_t yyscanner)
 {
-	FuncCall *n = makeNode(FuncCall);
-
-	n->funcname = SystemFuncName("overlaps");
+	FuncCall *n;
 	if (list_length(largs) == 1)
 		largs = lappend(largs, largs);
 	else if (list_length(largs) != 2)
@@ -13315,13 +13116,7 @@ makeOverlaps(List *largs, List *rargs, int location, core_yyscan_t yyscanner)
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("wrong number of parameters on right side of OVERLAPS expression"),
 				 parser_errposition(location)));
-	n->args = list_concat(largs, rargs);
-	n->agg_order = NIL;
-	n->agg_star = FALSE;
-	n->agg_distinct = FALSE;
-	n->func_variadic = FALSE;
-	n->over = NULL;
-	n->location = location;
+	n = makeFuncCall(SystemFuncName("overlaps"), list_concat(largs, rargs), location);
 	return n;
 }
 

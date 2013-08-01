@@ -42,6 +42,7 @@
 #include "access/transam.h"
 #include "access/xact.h"
 #include "catalog/namespace.h"
+#include "commands/matview.h"
 #include "commands/trigger.h"
 #include "executor/execdebug.h"
 #include "foreign/fdwapi.h"
@@ -999,10 +1000,11 @@ CheckValidResultRel(Relation resultRel, CmdType operation)
 			}
 			break;
 		case RELKIND_MATVIEW:
-			ereport(ERROR,
-					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-					 errmsg("cannot change materialized view \"%s\"",
-							RelationGetRelationName(resultRel))));
+			if (!MatViewIncrementalMaintenanceIsEnabled())
+				ereport(ERROR,
+						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+						 errmsg("cannot change materialized view \"%s\"",
+								RelationGetRelationName(resultRel))));
 			break;
 		case RELKIND_FOREIGN_TABLE:
 			/* Okay only if the FDW supports it */
@@ -1015,6 +1017,12 @@ CheckValidResultRel(Relation resultRel, CmdType operation)
 								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 							errmsg("cannot insert into foreign table \"%s\"",
 								   RelationGetRelationName(resultRel))));
+					if (fdwroutine->IsForeignRelUpdatable != NULL &&
+						(fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_INSERT)) == 0)
+						ereport(ERROR,
+						  (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+						errmsg("foreign table \"%s\" does not allow inserts",
+							   RelationGetRelationName(resultRel))));
 					break;
 				case CMD_UPDATE:
 					if (fdwroutine->ExecForeignUpdate == NULL)
@@ -1022,6 +1030,12 @@ CheckValidResultRel(Relation resultRel, CmdType operation)
 								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 								 errmsg("cannot update foreign table \"%s\"",
 										RelationGetRelationName(resultRel))));
+					if (fdwroutine->IsForeignRelUpdatable != NULL &&
+						(fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_UPDATE)) == 0)
+						ereport(ERROR,
+						  (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+						errmsg("foreign table \"%s\" does not allow updates",
+							   RelationGetRelationName(resultRel))));
 					break;
 				case CMD_DELETE:
 					if (fdwroutine->ExecForeignDelete == NULL)
@@ -1029,6 +1043,12 @@ CheckValidResultRel(Relation resultRel, CmdType operation)
 								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 							errmsg("cannot delete from foreign table \"%s\"",
 								   RelationGetRelationName(resultRel))));
+					if (fdwroutine->IsForeignRelUpdatable != NULL &&
+						(fdwroutine->IsForeignRelUpdatable(resultRel) & (1 << CMD_DELETE)) == 0)
+						ereport(ERROR,
+						  (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+						errmsg("foreign table \"%s\" does not allow deletes",
+							   RelationGetRelationName(resultRel))));
 					break;
 				default:
 					elog(ERROR, "unrecognized CmdType: %d", (int) operation);
@@ -1600,6 +1620,49 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 					 errdetail("Failing row contains %s.",
 							   ExecBuildSlotValueDescription(slot, 64)),
 					 errtableconstraint(rel, failed)));
+	}
+}
+
+/*
+ * ExecWithCheckOptions -- check that tuple satisfies any WITH CHECK OPTIONs
+ */
+void
+ExecWithCheckOptions(ResultRelInfo *resultRelInfo,
+					 TupleTableSlot *slot, EState *estate)
+{
+	ExprContext *econtext;
+	ListCell   *l1, *l2;
+
+	/*
+	 * We will use the EState's per-tuple context for evaluating constraint
+	 * expressions (creating it if it's not already there).
+	 */
+	econtext = GetPerTupleExprContext(estate);
+
+	/* Arrange for econtext's scan tuple to be the tuple under test */
+	econtext->ecxt_scantuple = slot;
+
+	/* Check each of the constraints */
+	forboth(l1, resultRelInfo->ri_WithCheckOptions,
+			l2, resultRelInfo->ri_WithCheckOptionExprs)
+	{
+		WithCheckOption *wco = (WithCheckOption *) lfirst(l1);
+		ExprState	   *wcoExpr = (ExprState *) lfirst(l2);
+
+		/*
+		 * WITH CHECK OPTION checks are intended to ensure that the new tuple
+		 * is visible in the view.  If the view's qual evaluates to NULL, then
+		 * the new tuple won't be included in the view.  Therefore we need to
+		 * tell ExecQual to return FALSE for NULL (the opposite of what we do
+		 * above for CHECK constraints).
+		 */
+		if (!ExecQual((List *) wcoExpr, econtext, false))
+			ereport(ERROR,
+					(errcode(ERRCODE_WITH_CHECK_OPTION_VIOLATION),
+					 errmsg("new row violates WITH CHECK OPTION for view \"%s\"",
+							wco->viewname),
+					 errdetail("Failing row contains %s.",
+							   ExecBuildSlotValueDescription(slot, 64))));
 	}
 }
 

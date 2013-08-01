@@ -3309,6 +3309,7 @@ create_xlog_symlink(void)
 		fprintf(stderr, _("%s: symlinks are not supported on this platform"));
 		exit_nicely();
 #endif
+		free(linkloc);
 	}
 }
 
@@ -3628,6 +3629,8 @@ main(int argc, char *argv[])
 	setup_locale_encoding();
 
 	setup_text_search();
+
+	printf("\n");
 
 	if (data_checksums)
 		printf(_("Data page checksums are enabled.\n"));

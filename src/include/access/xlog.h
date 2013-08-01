@@ -190,6 +190,7 @@ extern char *XLogArchiveCommand;
 extern bool EnableHotStandby;
 extern bool fullPageWrites;
 extern bool log_checkpoints;
+extern int	num_xloginsert_slots;
 
 /* WAL levels */
 typedef enum WalLevel
@@ -267,7 +268,7 @@ extern bool XLogNeedsFlush(XLogRecPtr RecPtr);
 extern int	XLogFileInit(XLogSegNo segno, bool *use_existent, bool use_lock);
 extern int	XLogFileOpen(XLogSegNo segno);
 
-extern XLogRecPtr XLogSaveBufferForHint(Buffer buffer);
+extern XLogRecPtr XLogSaveBufferForHint(Buffer buffer, bool buffer_std);
 
 extern void CheckXLogRemoved(XLogSegNo segno, TimeLineID tli);
 extern void XLogSetAsyncXactLSN(XLogRecPtr record);

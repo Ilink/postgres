@@ -59,6 +59,7 @@
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
 #include "utils/rel.h"
+#include "utils/snapmgr.h"
 #include "utils/timestamp.h"
 #include "utils/tqual.h"
 
@@ -1097,6 +1098,7 @@ pgstat_collect_oids(Oid catalogid)
 	Relation	rel;
 	HeapScanDesc scan;
 	HeapTuple	tup;
+	Snapshot	snapshot;
 
 	memset(&hash_ctl, 0, sizeof(hash_ctl));
 	hash_ctl.keysize = sizeof(Oid);
@@ -1109,7 +1111,8 @@ pgstat_collect_oids(Oid catalogid)
 					   HASH_ELEM | HASH_FUNCTION | HASH_CONTEXT);
 
 	rel = heap_open(catalogid, AccessShareLock);
-	scan = heap_beginscan(rel, SnapshotNow, 0, NULL);
+	snapshot = RegisterSnapshot(GetLatestSnapshot());
+	scan = heap_beginscan(rel, snapshot, 0, NULL);
 	while ((tup = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Oid			thisoid = HeapTupleGetOid(tup);
@@ -1119,6 +1122,7 @@ pgstat_collect_oids(Oid catalogid)
 		(void) hash_search(htab, (void *) &thisoid, HASH_ENTER, NULL);
 	}
 	heap_endscan(scan);
+	UnregisterSnapshot(snapshot);
 	heap_close(rel, AccessShareLock);
 
 	return htab;
@@ -3598,6 +3602,13 @@ pgstat_write_statsfiles(bool permanent, bool allDbs)
 	{
 		slist_mutable_iter iter;
 
+		/*
+		 * Strictly speaking we should do slist_delete_current() before
+		 * freeing each request struct.  We skip that and instead
+		 * re-initialize the list header at the end.  Nonetheless, we must use
+		 * slist_foreach_modify, not just slist_foreach, since we will free
+		 * the node's storage before advancing.
+		 */
 		slist_foreach_modify(iter, &last_statrequests)
 		{
 			DBWriteRequest *req;

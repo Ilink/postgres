@@ -146,8 +146,7 @@ handle_args(int argc, char *argv[])
 
 	if (argc > 1)
 	{
-		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0 ||
-			strcmp(argv[1], "-?") == 0)
+		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
 		{
 			printf("Usage: %s [-f FILENAME] [-s SECS-PER-TEST]\n", progname);
 			exit(0);
@@ -207,7 +206,7 @@ prepare_buf(void)
 	for (ops = 0; ops < XLOG_SEG_SIZE; ops++)
 		full_buf[ops] = random();
 
-	buf = (char *) TYPEALIGN(ALIGNOF_XLOG_BUFFER, full_buf);
+	buf = (char *) TYPEALIGN(XLOG_BLCKSZ, full_buf);
 }
 
 static void

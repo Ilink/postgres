@@ -372,7 +372,7 @@ DefineIndex(IndexStmt *stmt,
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-					 errmsg("\"%s\" is not a table",
+					 errmsg("\"%s\" is not a table or materialized view",
 							RelationGetRelationName(rel))));
 	}
 
@@ -1358,7 +1358,7 @@ GetDefaultOpClass(Oid type_id, Oid am_id)
 				ObjectIdGetDatum(am_id));
 
 	scan = systable_beginscan(rel, OpclassAmNameNspIndexId, true,
-							  SnapshotNow, 1, skey);
+							  NULL, 1, skey);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -1768,7 +1768,9 @@ ReindexTable(RangeVar *relation)
 	heapOid = RangeVarGetRelidExtended(relation, ShareLock, false, false,
 									   RangeVarCallbackOwnsTable, NULL);
 
-	if (!reindex_relation(heapOid, REINDEX_REL_PROCESS_TOAST))
+	if (!reindex_relation(heapOid,
+						  REINDEX_REL_PROCESS_TOAST |
+						  REINDEX_REL_CHECK_CONSTRAINTS))
 		ereport(NOTICE,
 				(errmsg("table \"%s\" has no indexes",
 						relation->relname)));
@@ -1834,11 +1836,11 @@ ReindexDatabase(const char *databaseName, bool do_system, bool do_user)
 	/*
 	 * Scan pg_class to build a list of the relations we need to reindex.
 	 *
-	 * We only consider plain relations here (toast rels will be processed
-	 * indirectly by reindex_relation).
+	 * We only consider plain relations and materialized views here (toast
+	 * rels will be processed indirectly by reindex_relation).
 	 */
 	relationRelation = heap_open(RelationRelationId, AccessShareLock);
-	scan = heap_beginscan(relationRelation, SnapshotNow, 0, NULL);
+	scan = heap_beginscan_catalog(relationRelation, 0, NULL);
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Form_pg_class classtuple = (Form_pg_class) GETSTRUCT(tuple);
@@ -1884,7 +1886,9 @@ ReindexDatabase(const char *databaseName, bool do_system, bool do_user)
 		StartTransactionCommand();
 		/* functions in indexes may want a snapshot set */
 		PushActiveSnapshot(GetTransactionSnapshot());
-		if (reindex_relation(relid, REINDEX_REL_PROCESS_TOAST))
+		if (reindex_relation(relid,
+							 REINDEX_REL_PROCESS_TOAST |
+							 REINDEX_REL_CHECK_CONSTRAINTS))
 			ereport(NOTICE,
 					(errmsg("table \"%s.%s\" was reindexed",
 							get_namespace_name(get_rel_namespace(relid)),

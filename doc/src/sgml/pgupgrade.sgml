@@ -79,16 +79,16 @@
     <variablelist>
 
      <varlistentry>
-      <term><option>-b</option> <replaceable>old_bindir</></term>
-      <term><option>--old-bindir=</option><replaceable>old_bindir</></term>
-      <listitem><para>the old cluster executable directory;
+      <term><option>-b</option> <replaceable>bindir</></term>
+      <term><option>--old-bindir=</option><replaceable>bindir</></term>
+      <listitem><para>the old PostgreSQL executable directory;
       environment variable <envar>PGBINOLD</></para></listitem>
      </varlistentry>
 
      <varlistentry>
-      <term><option>-B</option> <replaceable>new_bindir</></term>
-      <term><option>--new-bindir=</option><replaceable>new_bindir</></term>
-      <listitem><para>the new cluster executable directory;
+      <term><option>-B</option> <replaceable>bindir</></term>
+      <term><option>--new-bindir=</option><replaceable>bindir</></term>
+      <listitem><para>the new PostgreSQL executable directory;
       environment variable <envar>PGBINNEW</></para></listitem>
      </varlistentry>
 
@@ -99,15 +99,15 @@
      </varlistentry>
 
      <varlistentry>
-      <term><option>-d</option> <replaceable>old_datadir</></term>
-      <term><option>--old-datadir=</option><replaceable>old_datadir</></term>
+      <term><option>-d</option> <replaceable>datadir</></term>
+      <term><option>--old-datadir=</option><replaceable>datadir</></term>
       <listitem><para>the old cluster data directory; environment
       variable <envar>PGDATAOLD</></para></listitem>
      </varlistentry>
 
      <varlistentry>
-      <term><option>-D</option> <replaceable>new_datadir</></term>
-      <term><option>--new-datadir=</option><replaceable>new_datadir</></term>
+      <term><option>-D</option> <replaceable>datadir</></term>
+      <term><option>--new-datadir=</option><replaceable>datadir</></term>
       <listitem><para>the new cluster data directory; environment
       variable <envar>PGDATANEW</></para></listitem>
      </varlistentry>
@@ -140,15 +140,15 @@
      </varlistentry>
 
      <varlistentry>
-      <term><option>-p</option> <replaceable>old_port_number</></term>
-      <term><option>--old-port=</option><replaceable>old_portnum</></term>
+      <term><option>-p</option> <replaceable>port</></term>
+      <term><option>--old-port=</option><replaceable>port</></term>
       <listitem><para>the old cluster port number; environment
       variable <envar>PGPORTOLD</></para></listitem>
      </varlistentry>
 
      <varlistentry>
-      <term><option>-P</option> <replaceable>new_port_number</></term>
-      <term><option>--new-port=</option><replaceable>new_portnum</></term>
+      <term><option>-P</option> <replaceable>port</></term>
+      <term><option>--new-port=</option><replaceable>port</></term>
       <listitem><para>the new cluster port number; environment
       variable <envar>PGPORTNEW</></para></listitem>
      </varlistentry>
@@ -161,8 +161,8 @@
      </varlistentry>
 
      <varlistentry>
-      <term><option>-u</option> <replaceable>user_name</></term>
-      <term><option>--user=</option><replaceable>user_name</></term>
+      <term><option>-U</option> <replaceable>username</></term>
+      <term><option>--username=</option><replaceable>username</></term>
       <listitem><para>cluster's super user name; environment
       variable <envar>PGUSER</></para></listitem>
      </varlistentry>
@@ -181,7 +181,6 @@
 
      <varlistentry>
       <term><option>-?</option></term>
-      <term><option>-h</option></term>
       <term><option>--help</option></term>
       <listitem><para>show help, then exit</para></listitem>
      </varlistentry>
@@ -255,7 +254,8 @@ gmake prefix=/usr/local/pgsql.new install
 
     <para>
      Install the <application>pg_upgrade</> binary and
-     <application>pg_upgrade_support</> library in the new PostgreSQL cluster.
+     <application>pg_upgrade_support</> library in the new PostgreSQL
+     installation.
     </para>
    </step>
 
@@ -288,10 +288,10 @@ gmake prefix=/usr/local/pgsql.new install
 
     <para>
      <command>pg_upgrade</> will connect to the old and new servers several times,
-     so you might want to set authentication to <literal>trust</> in
-     <filename>pg_hba.conf</>, or if using <literal>md5</> authentication,
-     use a <filename>~/.pgpass</> file (see <xref linkend="libpq-pgpass">)
-     to avoid being prompted repeatedly for a password.
+     so you might want to set authentication to <literal>trust</>
+     or <literal>peer</> in <filename>pg_hba.conf</>, or if using
+     <literal>md5</> authentication, use a <filename>~/.pgpass</> file
+     (see <xref linkend="libpq-pgpass">).
     </para>
    </step>
 
@@ -336,7 +336,8 @@ NET STOP pgsql-8.3  (<productname>PostgreSQL</> 8.3 and older used a different s
      copying), but you will not be able to access your old cluster
      once you start the new cluster after the upgrade.  Link mode also
      requires that the old and new cluster data directories be in the
-     same file system.  See <literal>pg_upgrade --help</> for a full
+     same file system.  (Tablespaces and <filename>pg_xlog</> can be on
+     different file systems.)  See <literal>pg_upgrade --help</> for a full
      list of options.
     </para>
 

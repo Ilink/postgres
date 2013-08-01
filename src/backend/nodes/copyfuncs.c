@@ -178,6 +178,7 @@ _copyModifyTable(const ModifyTable *from)
 	COPY_NODE_FIELD(resultRelations);
 	COPY_SCALAR_FIELD(resultRelIndex);
 	COPY_NODE_FIELD(plans);
+	COPY_NODE_FIELD(withCheckOptionLists);
 	COPY_NODE_FIELD(returningLists);
 	COPY_NODE_FIELD(fdwPrivLists);
 	COPY_NODE_FIELD(rowMarks);
@@ -508,6 +509,7 @@ _copyFunctionScan(const FunctionScan *from)
 	COPY_NODE_FIELD(funccoltypes);
 	COPY_NODE_FIELD(funccoltypmods);
 	COPY_NODE_FIELD(funccolcollations);
+	COPY_SCALAR_FIELD(funcordinality);
 
 	return newnode;
 }
@@ -1141,6 +1143,7 @@ _copyAggref(const Aggref *from)
 	COPY_NODE_FIELD(args);
 	COPY_NODE_FIELD(aggorder);
 	COPY_NODE_FIELD(aggdistinct);
+	COPY_NODE_FIELD(aggfilter);
 	COPY_SCALAR_FIELD(aggstar);
 	COPY_SCALAR_FIELD(agglevelsup);
 	COPY_LOCATION_FIELD(location);
@@ -1161,6 +1164,7 @@ _copyWindowFunc(const WindowFunc *from)
 	COPY_SCALAR_FIELD(wincollid);
 	COPY_SCALAR_FIELD(inputcollid);
 	COPY_NODE_FIELD(args);
+	COPY_NODE_FIELD(aggfilter);
 	COPY_SCALAR_FIELD(winref);
 	COPY_SCALAR_FIELD(winstar);
 	COPY_SCALAR_FIELD(winagg);
@@ -1984,6 +1988,7 @@ _copyRangeTblEntry(const RangeTblEntry *from)
 	COPY_NODE_FIELD(funccoltypes);
 	COPY_NODE_FIELD(funccoltypmods);
 	COPY_NODE_FIELD(funccolcollations);
+	COPY_SCALAR_FIELD(funcordinality);
 	COPY_NODE_FIELD(values_lists);
 	COPY_NODE_FIELD(values_collations);
 	COPY_STRING_FIELD(ctename);
@@ -2001,6 +2006,18 @@ _copyRangeTblEntry(const RangeTblEntry *from)
 	COPY_SCALAR_FIELD(checkAsUser);
 	COPY_BITMAPSET_FIELD(selectedCols);
 	COPY_BITMAPSET_FIELD(modifiedCols);
+
+	return newnode;
+}
+
+static WithCheckOption *
+_copyWithCheckOption(const WithCheckOption *from)
+{
+	WithCheckOption *newnode = makeNode(WithCheckOption);
+
+	COPY_STRING_FIELD(viewname);
+	COPY_NODE_FIELD(qual);
+	COPY_SCALAR_FIELD(cascaded);
 
 	return newnode;
 }
@@ -2158,6 +2175,7 @@ _copyFuncCall(const FuncCall *from)
 	COPY_NODE_FIELD(funcname);
 	COPY_NODE_FIELD(args);
 	COPY_NODE_FIELD(agg_order);
+	COPY_NODE_FIELD(agg_filter);
 	COPY_SCALAR_FIELD(agg_star);
 	COPY_SCALAR_FIELD(agg_distinct);
 	COPY_SCALAR_FIELD(func_variadic);
@@ -2299,6 +2317,7 @@ _copyRangeFunction(const RangeFunction *from)
 {
 	RangeFunction *newnode = makeNode(RangeFunction);
 
+	COPY_SCALAR_FIELD(ordinality);
 	COPY_SCALAR_FIELD(lateral);
 	COPY_NODE_FIELD(funccallnode);
 	COPY_NODE_FIELD(alias);
@@ -2462,6 +2481,7 @@ _copyQuery(const Query *from)
 	COPY_NODE_FIELD(rtable);
 	COPY_NODE_FIELD(jointree);
 	COPY_NODE_FIELD(targetList);
+	COPY_NODE_FIELD(withCheckOptions);
 	COPY_NODE_FIELD(returningList);
 	COPY_NODE_FIELD(groupClause);
 	COPY_NODE_FIELD(havingQual);
@@ -3091,6 +3111,7 @@ _copyViewStmt(const ViewStmt *from)
 	COPY_NODE_FIELD(query);
 	COPY_SCALAR_FIELD(replace);
 	COPY_NODE_FIELD(options);
+	COPY_SCALAR_FIELD(withCheckOption);
 
 	return newnode;
 }
@@ -3260,6 +3281,7 @@ _copyRefreshMatViewStmt(const RefreshMatViewStmt *from)
 {
 	RefreshMatViewStmt *newnode = makeNode(RefreshMatViewStmt);
 
+	COPY_SCALAR_FIELD(concurrent);
 	COPY_SCALAR_FIELD(skipData);
 	COPY_NODE_FIELD(relation);
 
@@ -4534,6 +4556,9 @@ copyObject(const void *from)
 			break;
 		case T_RangeTblEntry:
 			retval = _copyRangeTblEntry(from);
+			break;
+		case T_WithCheckOption:
+			retval = _copyWithCheckOption(from);
 			break;
 		case T_SortGroupClause:
 			retval = _copySortGroupClause(from);

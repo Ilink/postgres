@@ -51,11 +51,11 @@ typedef enum					/* contexts of JSON parser */
 static inline void json_lex(JsonLexContext *lex);
 static inline void json_lex_string(JsonLexContext *lex);
 static inline void json_lex_number(JsonLexContext *lex, char *s);
-static inline void parse_scalar(JsonLexContext *lex, JsonSemAction sem);
-static void parse_object_field(JsonLexContext *lex, JsonSemAction sem);
-static void parse_object(JsonLexContext *lex, JsonSemAction sem);
-static void parse_array_element(JsonLexContext *lex, JsonSemAction sem);
-static void parse_array(JsonLexContext *lex, JsonSemAction sem);
+static inline void parse_scalar(JsonLexContext *lex, JsonSemAction *sem);
+static void parse_object_field(JsonLexContext *lex, JsonSemAction *sem);
+static void parse_object(JsonLexContext *lex, JsonSemAction *sem);
+static void parse_array_element(JsonLexContext *lex, JsonSemAction *sem);
+static void parse_array(JsonLexContext *lex, JsonSemAction *sem);
 static void report_parse_error(JsonParseContext ctx, JsonLexContext *lex);
 static void report_invalid_token(JsonLexContext *lex);
 static int	report_json_context(JsonLexContext *lex);
@@ -70,12 +70,11 @@ static void array_to_json_internal(Datum array, StringInfo result,
 					   bool use_line_feeds);
 
 /* the null action object used for pure validation */
-static jsonSemAction nullSemAction =
+static JsonSemAction nullSemAction =
 {
 	NULL, NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL, NULL
 };
-static JsonSemAction NullSemAction = &nullSemAction;
 
 /* Recursive Descent parser support routines */
 
@@ -170,7 +169,7 @@ json_in(PG_FUNCTION_ARGS)
 
 	/* validate it */
 	lex = makeJsonLexContext(result, false);
-	pg_parse_json(lex, NullSemAction);
+	pg_parse_json(lex, &nullSemAction);
 
 	/* Internal representation is the same as text, for now */
 	PG_RETURN_TEXT_P(result);
@@ -222,7 +221,7 @@ json_recv(PG_FUNCTION_ARGS)
 
 	/* Validate it. */
 	lex = makeJsonLexContext(result, false);
-	pg_parse_json(lex, NullSemAction);
+	pg_parse_json(lex, &nullSemAction);
 
 	PG_RETURN_TEXT_P(result);
 }
@@ -260,7 +259,7 @@ makeJsonLexContext(text *json, bool need_escapes)
  * pointer to a state object to be passed to those routines.
  */
 void
-pg_parse_json(JsonLexContext *lex, JsonSemAction sem)
+pg_parse_json(JsonLexContext *lex, JsonSemAction *sem)
 {
 	JsonTokenType tok;
 
@@ -296,7 +295,7 @@ pg_parse_json(JsonLexContext *lex, JsonSemAction sem)
  *	  - object field
  */
 static inline void
-parse_scalar(JsonLexContext *lex, JsonSemAction sem)
+parse_scalar(JsonLexContext *lex, JsonSemAction *sem)
 {
 	char	   *val = NULL;
 	json_scalar_action sfunc = sem->scalar;
@@ -332,7 +331,7 @@ parse_scalar(JsonLexContext *lex, JsonSemAction sem)
 }
 
 static void
-parse_object_field(JsonLexContext *lex, JsonSemAction sem)
+parse_object_field(JsonLexContext *lex, JsonSemAction *sem)
 {
 	/*
 	 * an object field is "fieldname" : value where value can be a scalar,
@@ -380,7 +379,7 @@ parse_object_field(JsonLexContext *lex, JsonSemAction sem)
 }
 
 static void
-parse_object(JsonLexContext *lex, JsonSemAction sem)
+parse_object(JsonLexContext *lex, JsonSemAction *sem)
 {
 	/*
 	 * an object is a possibly empty sequence of object fields, separated by
@@ -428,7 +427,7 @@ parse_object(JsonLexContext *lex, JsonSemAction sem)
 }
 
 static void
-parse_array_element(JsonLexContext *lex, JsonSemAction sem)
+parse_array_element(JsonLexContext *lex, JsonSemAction *sem)
 {
 	json_aelem_action astart = sem->array_element_start;
 	json_aelem_action aend = sem->array_element_end;
@@ -459,7 +458,7 @@ parse_array_element(JsonLexContext *lex, JsonSemAction sem)
 }
 
 static void
-parse_array(JsonLexContext *lex, JsonSemAction sem)
+parse_array(JsonLexContext *lex, JsonSemAction *sem)
 {
 	/*
 	 * an array is a possibly empty sequence of array elements, separated by
@@ -598,7 +597,7 @@ json_lex(JsonLexContext *lex)
 					 * the whole word as an unexpected token, rather than just
 					 * some unintuitive prefix thereof.
 					 */
-					for (p = s; JSON_ALPHANUMERIC_CHAR(*p) && p - s < lex->input_length - len; p++)
+					for (p = s; p - s < lex->input_length - len && JSON_ALPHANUMERIC_CHAR(*p); p++)
 						 /* skip */ ;
 
 					/*
@@ -651,16 +650,21 @@ json_lex_string(JsonLexContext *lex)
 	if (lex->strval != NULL)
 		resetStringInfo(lex->strval);
 
+	Assert(lex->input_length > 0);
+	s = lex->token_start;
 	len = lex->token_start - lex->input;
-	len++;
-	for (s = lex->token_start + 1; *s != '"'; s++, len++)
+	for (;;)
 	{
+		s++;
+		len++;
 		/* Premature end of the string. */
 		if (len >= lex->input_length)
 		{
 			lex->token_terminator = s;
 			report_invalid_token(lex);
 		}
+		else if (*s == '"')
+			break;
 		else if ((unsigned char) *s < 32)
 		{
 			/* Per RFC4627, these characters MUST be escaped. */
@@ -717,7 +721,6 @@ json_lex_string(JsonLexContext *lex)
 				{
 					char		utf8str[5];
 					int			utf8len;
-					char	   *converted;
 
 					if (ch >= 0xd800 && ch <= 0xdbff)
 					{
@@ -749,13 +752,40 @@ json_lex_string(JsonLexContext *lex)
 								 errdetail("low order surrogate must follow a high order surrogate."),
 								 report_json_context(lex)));
 
-					unicode_to_utf8(ch, (unsigned char *) utf8str);
-					utf8len = pg_utf_mblen((unsigned char *) utf8str);
-					utf8str[utf8len] = '\0';
-					converted = pg_any_to_server(utf8str, utf8len, PG_UTF8);
-					appendStringInfoString(lex->strval, converted);
-					if (converted != utf8str)
-						pfree(converted);
+					/*
+					 * For UTF8, replace the escape sequence by the actual utf8
+					 * character in lex->strval. Do this also for other encodings
+					 * if the escape designates an ASCII character, otherwise
+					 * raise an error. We don't ever unescape a \u0000, since that
+					 * would result in an impermissible nul byte.
+					 */
+
+					if (ch == 0)
+					{
+						appendStringInfoString(lex->strval, "\\u0000");
+					}
+					else if (GetDatabaseEncoding() == PG_UTF8)
+					{
+						unicode_to_utf8(ch, (unsigned char *) utf8str);
+						utf8len = pg_utf_mblen((unsigned char *) utf8str);
+						appendBinaryStringInfo(lex->strval, utf8str, utf8len);
+					}
+					else if (ch <= 0x007f)
+					{
+						/*
+						 * This is the only way to designate things like a form feed
+						 * character in JSON, so it's useful in all encodings.
+						 */
+						appendStringInfoChar(lex->strval, (char) ch);
+					}
+					else
+					{
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+								 errmsg("invalid input syntax for type json"),
+								 errdetail("Unicode escape for code points higher than U+007F not permitted in non-UTF8 encoding"),
+								 report_json_context(lex)));
+					}
 
 				}
 			}
@@ -895,7 +925,7 @@ json_lex_number(JsonLexContext *lex, char *s)
 		{
 			s++;
 			len++;
-		} while (*s >= '0' && *s <= '9' && len < lex->input_length);
+		} while (len < lex->input_length && *s >= '0' && *s <= '9');
 	}
 	else
 		error = true;
@@ -913,7 +943,7 @@ json_lex_number(JsonLexContext *lex, char *s)
 			{
 				s++;
 				len++;
-			} while (*s >= '0' && *s <= '9' && len < lex->input_length);
+			} while (len < lex->input_length && *s >= '0' && *s <= '9');
 		}
 	}
 
@@ -944,7 +974,7 @@ json_lex_number(JsonLexContext *lex, char *s)
 	 * here should be considered part of the token for error-reporting
 	 * purposes.
 	 */
-	for (p = s; JSON_ALPHANUMERIC_CHAR(*p) && len < lex->input_length; p++, len++)
+	for (p = s; len < lex->input_length && JSON_ALPHANUMERIC_CHAR(*p); p++, len++)
 		error = true;
 	lex->prev_token_terminator = lex->token_terminator;
 	lex->token_terminator = p;
@@ -1112,8 +1142,8 @@ report_json_context(JsonLexContext *lex)
 	line_number = 1;
 	for (;;)
 	{
-		/* Always advance over newlines (context_end test is just paranoia) */
-		if (*context_start == '\n' && context_start < context_end)
+		/* Always advance over newlines */
+		if (context_start < context_end && *context_start == '\n')
 		{
 			context_start++;
 			line_start = context_start;

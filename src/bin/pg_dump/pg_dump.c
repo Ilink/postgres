@@ -14,13 +14,13 @@
  *	Note that pg_dump runs in a transaction-snapshot mode transaction,
  *	so it sees a consistent snapshot of the database including system
  *	catalogs. However, it relies in part on various specialized backend
- *	functions like pg_get_indexdef(), and those things tend to run on
- *	SnapshotNow time, ie they look at the currently committed state.  So
- *	it is possible to get 'cache lookup failed' error if someone
- *	performs DDL changes while a dump is happening. The window for this
- *	sort of thing is from the acquisition of the transaction snapshot to
- *	getSchemaData() (when pg_dump acquires AccessShareLock on every
- *	table it intends to dump). It isn't very large, but it can happen.
+ *	functions like pg_get_indexdef(), and those things tend to look at
+ *	the currently committed state.  So it is possible to get 'cache
+ *	lookup failed' error if someone performs DDL changes while a dump is
+ *	happening. The window for this sort of thing is from the acquisition
+ *	of the transaction snapshot to getSchemaData() (when pg_dump acquires
+ *	AccessShareLock on every table it intends to dump). It isn't very large,
+ *	but it can happen.
  *
  *	http://archives.postgresql.org/pgsql-bugs/2010-02/msg00187.php
  *
@@ -2778,19 +2778,19 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 	PQExpBuffer upgrade_query = createPQExpBuffer();
 	PGresult   *upgrade_res;
 	Oid			pg_class_reltoastrelid;
-	Oid			pg_class_reltoastidxid;
+	Oid			pg_index_indexrelid;
 
 	appendPQExpBuffer(upgrade_query,
-					  "SELECT c.reltoastrelid, t.reltoastidxid "
+					  "SELECT c.reltoastrelid, i.indexrelid "
 					  "FROM pg_catalog.pg_class c LEFT JOIN "
-					  "pg_catalog.pg_class t ON (c.reltoastrelid = t.oid) "
+					  "pg_catalog.pg_index i ON (c.reltoastrelid = i.indrelid AND i.indisvalid) "
 					  "WHERE c.oid = '%u'::pg_catalog.oid;",
 					  pg_class_oid);
 
 	upgrade_res = ExecuteSqlQueryForSingleRow(fout, upgrade_query->data);
 
 	pg_class_reltoastrelid = atooid(PQgetvalue(upgrade_res, 0, PQfnumber(upgrade_res, "reltoastrelid")));
-	pg_class_reltoastidxid = atooid(PQgetvalue(upgrade_res, 0, PQfnumber(upgrade_res, "reltoastidxid")));
+	pg_index_indexrelid = atooid(PQgetvalue(upgrade_res, 0, PQfnumber(upgrade_res, "indexrelid")));
 
 	appendPQExpBuffer(upgrade_buffer,
 				   "\n-- For binary upgrade, must preserve pg_class oids\n");
@@ -2819,7 +2819,7 @@ binary_upgrade_set_pg_class_oids(Archive *fout,
 			/* every toast table has an index */
 			appendPQExpBuffer(upgrade_buffer,
 							  "SELECT binary_upgrade.set_next_index_pg_class_oid('%u'::pg_catalog.oid);\n",
-							  pg_class_reltoastidxid);
+							  pg_index_indexrelid);
 		}
 	}
 	else
@@ -4224,6 +4224,7 @@ getTables(Archive *fout, int *numTables)
 	int			i_owning_col;
 	int			i_reltablespace;
 	int			i_reloptions;
+	int			i_checkoption;
 	int			i_toastreloptions;
 	int			i_reloftype;
 	int			i_relpages;
@@ -4271,7 +4272,9 @@ getTables(Archive *fout, int *numTables)
 						  "d.refobjid AS owning_tab, "
 						  "d.refobjsubid AS owning_col, "
 						  "(SELECT spcname FROM pg_tablespace t WHERE t.oid = c.reltablespace) AS reltablespace, "
-						"array_to_string(c.reloptions, ', ') AS reloptions, "
+						"array_to_string(array_remove(array_remove(c.reloptions,'check_option=local'),'check_option=cascaded'), ', ') AS reloptions, "
+						  "CASE WHEN 'check_option=local' = ANY (c.reloptions) THEN 'LOCAL'::text "
+							   "WHEN 'check_option=cascaded' = ANY (c.reloptions) THEN 'CASCADED'::text ELSE NULL END AS checkoption, "
 						  "array_to_string(array(SELECT 'toast.' || x FROM unnest(tc.reloptions) x), ', ') AS toast_reloptions "
 						  "FROM pg_class c "
 						  "LEFT JOIN pg_depend d ON "
@@ -4635,6 +4638,7 @@ getTables(Archive *fout, int *numTables)
 	i_owning_col = PQfnumber(res, "owning_col");
 	i_reltablespace = PQfnumber(res, "reltablespace");
 	i_reloptions = PQfnumber(res, "reloptions");
+	i_checkoption = PQfnumber(res, "checkoption");
 	i_toastreloptions = PQfnumber(res, "toast_reloptions");
 	i_reloftype = PQfnumber(res, "reloftype");
 
@@ -4694,6 +4698,10 @@ getTables(Archive *fout, int *numTables)
 		}
 		tblinfo[i].reltablespace = pg_strdup(PQgetvalue(res, i, i_reltablespace));
 		tblinfo[i].reloptions = pg_strdup(PQgetvalue(res, i, i_reloptions));
+		if (i_checkoption == -1 || PQgetisnull(res, i, i_checkoption))
+			tblinfo[i].checkoption = NULL;
+		else
+			tblinfo[i].checkoption = pg_strdup(PQgetvalue(res, i, i_checkoption));
 		tblinfo[i].toast_reloptions = pg_strdup(PQgetvalue(res, i, i_toastreloptions));
 
 		/* other fields were zeroed above */
@@ -5746,7 +5754,7 @@ EventTriggerInfo *
 getEventTriggers(Archive *fout, int *numEventTriggers)
 {
 	int			i;
-	PQExpBuffer query = createPQExpBuffer();
+	PQExpBuffer query;
 	PGresult   *res;
 	EventTriggerInfo *evtinfo;
 	int			i_tableoid,
@@ -5765,6 +5773,8 @@ getEventTriggers(Archive *fout, int *numEventTriggers)
 		*numEventTriggers = 0;
 		return NULL;
 	}
+
+	query = createPQExpBuffer();
 
 	/* Make sure we are in proper schema */
 	selectSourceSchema(fout, "pg_catalog");
@@ -12751,7 +12761,6 @@ createViewAsClause(Archive *fout, TableInfo *tbinfo)
 		appendPQExpBuffer(query, "SELECT definition AS viewdef "
 						  "FROM pg_views WHERE viewname = ");
 		appendStringLiteralAH(query, tbinfo->dobj.name, fout);
-		appendPQExpBuffer(query, ";");
 	}
 
 	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
@@ -12833,8 +12842,12 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 		if (tbinfo->reloptions && strlen(tbinfo->reloptions) > 0)
 			appendPQExpBuffer(q, " WITH (%s)", tbinfo->reloptions);
 		result = createViewAsClause(fout, tbinfo);
-		appendPQExpBuffer(q, " AS\n%s;\n", result->data);
+		appendPQExpBuffer(q, " AS\n%s", result->data);
 		destroyPQExpBuffer(result);
+
+		if (tbinfo->checkoption != NULL)
+			appendPQExpBuffer(q, "\n  WITH %s CHECK OPTION", tbinfo->checkoption);
+		appendPQExpBuffer(q, ";\n");
 
 		appendPQExpBuffer(labelq, "VIEW %s",
 						  fmtId(tbinfo->dobj.name));
@@ -13126,7 +13139,8 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 		 * attislocal correctly, plus fix up any inherited CHECK constraints.
 		 * Analogously, we set up typed tables using ALTER TABLE / OF here.
 		 */
-		if (binary_upgrade && tbinfo->relkind == RELKIND_RELATION)
+		if (binary_upgrade && (tbinfo->relkind == RELKIND_RELATION ||
+							   tbinfo->relkind == RELKIND_FOREIGN_TABLE) )
 		{
 			for (j = 0; j < tbinfo->numatts; j++)
 			{
@@ -13144,13 +13158,19 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 					appendStringLiteralAH(q, fmtId(tbinfo->dobj.name), fout);
 					appendPQExpBuffer(q, "::pg_catalog.regclass;\n");
 
-					appendPQExpBuffer(q, "ALTER TABLE ONLY %s ",
-									  fmtId(tbinfo->dobj.name));
+					if (tbinfo->relkind == RELKIND_RELATION)
+						appendPQExpBuffer(q, "ALTER TABLE ONLY %s ",
+										  fmtId(tbinfo->dobj.name));
+					else
+						appendPQExpBuffer(q, "ALTER FOREIGN TABLE %s ",
+										  fmtId(tbinfo->dobj.name));
+
 					appendPQExpBuffer(q, "DROP COLUMN %s;\n",
 									  fmtId(tbinfo->attnames[j]));
 				}
 				else if (!tbinfo->attislocal[j])
 				{
+					Assert(tbinfo->relkind != RELKIND_FOREIGN_TABLE);
 					appendPQExpBuffer(q, "\n-- For binary upgrade, recreate inherited column.\n");
 					appendPQExpBuffer(q, "UPDATE pg_catalog.pg_attribute\n"
 									  "SET attislocal = false\n"
@@ -13483,6 +13503,7 @@ static void
 dumpIndex(Archive *fout, IndxInfo *indxinfo)
 {
 	TableInfo  *tbinfo = indxinfo->indextable;
+	bool		is_constraint = (indxinfo->indexconstraint != 0);
 	PQExpBuffer q;
 	PQExpBuffer delq;
 	PQExpBuffer labelq;
@@ -13500,9 +13521,11 @@ dumpIndex(Archive *fout, IndxInfo *indxinfo)
 	/*
 	 * If there's an associated constraint, don't dump the index per se, but
 	 * do dump any comment for it.	(This is safe because dependency ordering
-	 * will have ensured the constraint is emitted first.)
+	 * will have ensured the constraint is emitted first.)  Note that the
+	 * emitted comment has to be shown as depending on the constraint, not
+	 * the index, in such cases.
 	 */
-	if (indxinfo->indexconstraint == 0)
+	if (!is_constraint)
 	{
 		if (binary_upgrade)
 			binary_upgrade_set_pg_class_oids(fout, q,
@@ -13544,7 +13567,9 @@ dumpIndex(Archive *fout, IndxInfo *indxinfo)
 	dumpComment(fout, labelq->data,
 				tbinfo->dobj.namespace->dobj.name,
 				tbinfo->rolname,
-				indxinfo->dobj.catId, 0, indxinfo->dobj.dumpId);
+				indxinfo->dobj.catId, 0,
+				is_constraint ? indxinfo->indexconstraint :
+				indxinfo->dobj.dumpId);
 
 	destroyPQExpBuffer(q);
 	destroyPQExpBuffer(delq);
