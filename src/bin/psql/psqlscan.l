@@ -737,11 +737,24 @@ other			.
 					}
 					else
 					{
-						/*
-						 * if the variable doesn't exist we'll copy the
-						 * string as is
+						/* 
+						 * This might be the ANS variable
 						 */
-						ECHO;
+						const char* tableName;
+						
+						tableName = GetOrCreateTable(pset.ans, pset.db, varname);
+						if (tableName)
+						{
+							push_new_buffer(tableName, varname);
+						}
+						else
+						{
+							/*
+							* if the variable does not exist, copy the
+							* string without modification
+							*/
+							ECHO;
+						}
 					}
 
 					free(varname);

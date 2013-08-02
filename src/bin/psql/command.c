@@ -40,6 +40,7 @@
 #include "pqexpbuffer.h"
 #include "dumputils.h"
 
+#include "ans.h"
 #include "common.h"
 #include "copy.h"
 #include "describe.h"
@@ -51,6 +52,7 @@
 #include "psqlscan.h"
 #include "settings.h"
 #include "variables.h"
+#include "ans.h"
 
 
 /* functions for use in this file */
@@ -203,6 +205,41 @@ exec_command(const char *cmd,
 			success = do_pset("format", "aligned", &pset.popt, pset.quiet);
 		else
 			success = do_pset("format", "unaligned", &pset.popt, pset.quiet);
+	}
+
+	/* \ans - toggle query result history */
+	else if (strcmp(cmd, "ans") == 0)
+	{
+		char	 *opt = psql_scan_slash_option(scan_state,
+												 OT_NORMAL, NULL, false);
+
+		if (opt)
+			pset.ans_enabled = ParseVariableBool(opt);
+		else
+			// convenience: toggle the setting if the user did not provide an option
+			pset.ans_enabled = !pset.ans_enabled;
+		
+		if (!pset.quiet)
+		{
+			if (pset.ans_enabled)
+				puts(_("Query result history is on."));
+			else
+			{
+				puts(_("Query result history is off."));
+			}
+		}
+		free(opt);
+	}
+	/* \ansclean - clear query result history */
+	else if (strcmp(cmd, "ansclean") == 0)
+	{
+		DestroyAnsHistory(pset.db, pset.ans);
+		pset.ans = CreateAnsHistory();
+		
+		if (!pset.quiet)
+		{
+			puts(_("Query result history cleaned."));
+		}
 	}
 
 	/* \C -- override table title (formerly change HTML caption) */
@@ -1697,6 +1734,7 @@ do_connect(char *dbname, char *user, char *host, char *port)
 	PQsetNoticeProcessor(n_conn, NoticeProcessor, NULL);
 	pset.db = n_conn;
 	SyncVariables();
+	AnsClearTableNames(pset.ans);
 	connection_warnings(false); /* Must be after SyncVariables */
 
 	/* Tell the user about the new connection */

@@ -107,10 +107,17 @@ our @types;
 # produce output, one catalog at a time
 foreach my $catname (@{ $catalogs->{names} })
 {
+	print "GOGO";
 
 	# .bki CREATE command for this catalog
 	my $catalog = $catalogs->{$catname};
 	print BKI "create $catname $catalog->{relation_oid}"
+	  . $catalog->{shared_relation}
+	  . $catalog->{bootstrap}
+	  . $catalog->{without_oids}
+	  . $catalog->{rowtype_oid} . "\n";
+
+	print "create $catname $catalog->{relation_oid}"
 	  . $catalog->{shared_relation}
 	  . $catalog->{bootstrap}
 	  . $catalog->{without_oids}
@@ -157,12 +164,16 @@ foreach my $catname (@{ $catalogs->{names} })
 			# Write to postgres.bki
 			my $oid = $row->{oid} ? "OID = $row->{oid} " : '';
 			printf BKI "insert %s( %s)\n", $oid, $row->{bki_values};
+			printf "insert %s( %s)\n", $oid, $row->{bki_values};
 
 		   # Write comments to postgres.description and postgres.shdescription
 			if (defined $row->{descr})
 			{
 				printf DESCR "%s\t%s\t0\t%s\n", $row->{oid}, $catname,
 				  $row->{descr};
+
+			    printf "%s\t%s\t0\t%s\n", $row->{oid}, $catname,
+			  	  $row->{descr};
 			}
 			if (defined $row->{shdescr})
 			{
