@@ -656,12 +656,9 @@ typedef struct WindowAgg
 	Node	   *endOffset;		/* expression for ending bound, if any */
 	Oid			startOffsetFunc;
 	Oid			endOffsetFunc;
-	//Oid			startOp;		/* ""/"-" to calculate start bound */
-	//Oid			endOp;			/* ""/"-" to calculate end bound */
 	Oid			startCmp;		/* compare function for start bound */
 	Oid			endCmp;			/* compare function for end bound */
 	AttrNumber	offsetSortColIdx; /* In RANGE offset, which is sort key? */
-	// NOTE: do we still need these? is this bad behavior? should this logic be in the planner?
 	bool		offsetSortReverse;/* In RANGE offset, reverse sort? */
 	bool		offsetNullsFirst; /* In RANGE offset, sort is NULLS FIRST? */
 } WindowAgg;

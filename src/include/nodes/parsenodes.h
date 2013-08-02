@@ -422,8 +422,6 @@ typedef struct WindowFrameDef
  */
 typedef struct WindowDef
 {
-	// NOTE: does this still need this?
-	// WindowFrameDef *frame;		/* FRAME clause including boundary values */
 	NodeTag		type;
 	char	   *name;			/* window's own name */
 	char	   *refname;		/* referenced window name, if any */

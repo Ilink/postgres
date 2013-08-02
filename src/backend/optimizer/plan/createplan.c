@@ -4356,7 +4356,6 @@ make_windowagg(PlannerInfo *root, List *tlist,
 	if (frameOptions & FRAMEOPTION_RANGE &&
 			frameOptions & (FRAMEOPTION_START_VALUE | FRAMEOPTION_END_VALUE))
 	{
-		// NOTE: make sure this uses the latest struct names
 		SortGroupClause *sort_key;
 		TargetEntry	   *sort_tle, *upper_tle;
 		Oid				cmpfunc;
@@ -4374,12 +4373,6 @@ make_windowagg(PlannerInfo *root, List *tlist,
 		if (upper_tle == NULL)
 			elog(ERROR, "sort column reference is not found.");
 		node->offsetSortColIdx = upper_tle->resno;
-		// NOTE: this function is not here anymore
-		// if (!get_compare_function_for_ordering_op(sort_key->sortop,
-		// 										  &cmpfunc,
-		// 										  &reverse))
-		// 	elog(ERROR, "operator %u is not a valid ordering operator",
-		// 		 sort_key->sortop);
 		node->offsetSortReverse = reverse;
 		node->offsetNullsFirst = sort_key->nulls_first;
 	}
