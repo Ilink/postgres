@@ -1789,8 +1789,6 @@ transformWindowDefinitions(ParseState *pstate,
 					 parser_errposition(pstate, windef->location)));
 		wc->frameOptions = windef->frameOptions;
 		/* Process frame offset expressions */
-		// wc->startOffset = transformFrameOffset(pstate, wc->frameOptions,
-		// 									   windef->startOffset);
 
 		wc->startOffset = transformFrameOffset(pstate, wc->frameOptions,
 											   windef->startOffset,
@@ -1800,8 +1798,7 @@ transformWindowDefinitions(ParseState *pstate,
 											   &wc->startCmp,
 											   &wc->startOffsetFunc,
 											   windef->location);
-		// wc->endOffset = transformFrameOffset(pstate, wc->frameOptions,
-		// 									 windef->endOffset);
+
 		wc->endOffset = transformFrameOffset(pstate, wc->frameOptions,
 											 windef->endOffset,
 											 false,

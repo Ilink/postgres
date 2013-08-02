@@ -11756,7 +11756,6 @@ frame_bound:
 				{
 					WindowDef *n = makeNode(WindowDef);
 					n->frameOptions = FRAMEOPTION_START_CURRENT_ROW;
-					// NOTE: patch does not have these
 					n->startOffset = NULL;
 					n->endOffset = NULL;
 					$$ = n;

@@ -660,7 +660,6 @@ set_plan_refs(PlannerInfo *root, Plan *plan, int rtoffset)
 				 * frame offset expressions, which cannot contain subplan
 				 * variable refs, so fix_scan_expr works for them.
 				 */
-				// NOTE: patch uses glob instead of root, any reason?
 				wplan->startOffset =
 					fix_scan_expr(root, wplan->startOffset, rtoffset);
 				wplan->endOffset =
