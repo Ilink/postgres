@@ -115,8 +115,8 @@ static BitmapHeapScan *make_bitmap_heapscan(List *qptlist,
 static TidScan *make_tidscan(List *qptlist, List *qpqual, Index scanrelid,
 			 List *tidquals);
 static FunctionScan *make_functionscan(List *qptlist, List *qpqual,
-				  Index scanrelid, Node *funcexpr, List *funccolnames,
-				  List *funccoltypes, List *funccoltypmods,
+				  Index scanrelid, Node *funcexpr, bool ordinality,
+                  List *funccolnames, List *funccoltypes, List *funccoltypmods,
 				  List *funccolcollations);
 static ValuesScan *make_valuesscan(List *qptlist, List *qpqual,
 				Index scanrelid, List *values_lists);
@@ -1733,6 +1733,7 @@ create_functionscan_plan(PlannerInfo *root, Path *best_path,
 
 	scan_plan = make_functionscan(tlist, scan_clauses, scan_relid,
 								  funcexpr,
+								  rte->funcordinality,
 								  rte->eref->colnames,
 								  rte->funccoltypes,
 								  rte->funccoltypmods,
@@ -3366,6 +3367,7 @@ make_functionscan(List *qptlist,
 				  List *qpqual,
 				  Index scanrelid,
 				  Node *funcexpr,
+				  bool ordinality,
 				  List *funccolnames,
 				  List *funccoltypes,
 				  List *funccoltypmods,
@@ -3381,6 +3383,7 @@ make_functionscan(List *qptlist,
 	plan->righttree = NULL;
 	node->scan.scanrelid = scanrelid;
 	node->funcexpr = funcexpr;
+	node->funcordinality = ordinality;
 	node->funccolnames = funccolnames;
 	node->funccoltypes = funccoltypes;
 	node->funccoltypmods = funccoltypmods;
@@ -4188,6 +4191,9 @@ make_sort_from_groupcols(PlannerInfo *root,
 		SortGroupClause *grpcl = (SortGroupClause *) lfirst(l);
 		TargetEntry *tle = get_tle_by_resno(sub_tlist, grpColIdx[numsortkeys]);
 
+		if (!tle)
+			elog(ERROR, "could not retrive tle for sort-from-groupcols");
+
 		sortColIdx[numsortkeys] = tle->resno;
 		sortOperators[numsortkeys] = grpcl->sortop;
 		collations[numsortkeys] = exprCollation((Node *) tle->expr);
@@ -4699,16 +4705,16 @@ make_result(PlannerInfo *root,
  *	  Build a ModifyTable plan node
  *
  * Currently, we don't charge anything extra for the actual table modification
- * work, nor for the RETURNING expressions if any.	It would only be window
- * dressing, since these are always top-level nodes and there is no way for
- * the costs to change any higher-level planning choices.  But we might want
- * to make it look better sometime.
+ * work, nor for the WITH CHECK OPTIONS or RETURNING expressions if any.  It
+ * would only be window dressing, since these are always top-level nodes and
+ * there is no way for the costs to change any higher-level planning choices.
+ * But we might want to make it look better sometime.
  */
 ModifyTable *
 make_modifytable(PlannerInfo *root,
 				 CmdType operation, bool canSetTag,
-				 List *resultRelations,
-				 List *subplans, List *returningLists,
+				 List *resultRelations, List *subplans,
+				 List *withCheckOptionLists, List *returningLists,
 				 List *rowMarks, int epqParam)
 {
 	ModifyTable *node = makeNode(ModifyTable);
@@ -4720,6 +4726,8 @@ make_modifytable(PlannerInfo *root,
 	int			i;
 
 	Assert(list_length(resultRelations) == list_length(subplans));
+	Assert(withCheckOptionLists == NIL ||
+		   list_length(resultRelations) == list_length(withCheckOptionLists));
 	Assert(returningLists == NIL ||
 		   list_length(resultRelations) == list_length(returningLists));
 
@@ -4756,6 +4764,7 @@ make_modifytable(PlannerInfo *root,
 	node->resultRelations = resultRelations;
 	node->resultRelIndex = -1;	/* will be set correctly in setrefs.c */
 	node->plans = subplans;
+	node->withCheckOptionLists = withCheckOptionLists;
 	node->returningLists = returningLists;
 	node->rowMarks = rowMarks;
 	node->epqParam = epqParam;
