@@ -2348,7 +2348,7 @@ findWindowClause(List *wclist, const char *name)
 // 	{
 // 		ereport(ERROR,
 // 				(errcode(ERRCODE_GROUPING_ERROR),
-// 		 translator: %s is name of a SQL construct, eg LIMIT 
+// 		/* translator: %s is name of a SQL construct, eg LIMIT */
 // 				 errmsg("argument of %s must not contain aggregate functions",
 // 						constructName),
 // 				 parser_errposition(pstate,

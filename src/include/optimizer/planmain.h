@@ -70,12 +70,6 @@ extern WindowAgg *make_windowagg(PlannerInfo *root, List *tlist,
 			   List *orderClause, int frameOptions, Node *startOffset,
 			   Node *endOffset, Oid startOffsetFunc, Oid endOffsetFunc,
 			   Oid startCmp, Oid endCmp, Plan *lefttree);
-// extern WindowAgg *make_windowagg(PlannerInfo *root, List *tlist,
-// 			   List *windowFuncs, Index winref,
-// 			   int partNumCols, AttrNumber *partColIdx, Oid *partOperators,
-// 			   int ordNumCols, AttrNumber *ordColIdx, Oid *ordOperators,
-// 			   int frameOptions, Node *startOffset, Node *endOffset,
-// 			   Plan *lefttree);
 extern Group *make_group(PlannerInfo *root, List *tlist, List *qual,
 		   int numGroupCols, AttrNumber *grpColIdx, Oid *grpOperators,
 		   double numGroups,
