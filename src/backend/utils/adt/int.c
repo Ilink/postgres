@@ -635,7 +635,6 @@ int4up(PG_FUNCTION_ARGS)
 Datum
 int4pl(PG_FUNCTION_ARGS)
 {
-	elog(INFO, "INT4PL");
 	int32		arg1 = PG_GETARG_INT32(0);
 	int32		arg2 = PG_GETARG_INT32(1);
 	int32		result;
@@ -657,14 +656,11 @@ int4pl(PG_FUNCTION_ARGS)
 Datum
 int4offset(PG_FUNCTION_ARGS)
 {
-	elog(INFO, "INT4PL");
 	int32		arg1 = PG_GETARG_INT32(0);
 	int32		arg2 = PG_GETARG_INT32(1);
 	int32		result;
 
 	result = arg1 + arg2;
-
-	// elog(NOTICE, "%i + %i", arg1, arg2);
 
 	/*
 	 * Overflow check.	If the inputs are of different signs then their sum
@@ -686,8 +682,6 @@ int4mi(PG_FUNCTION_ARGS)
 	int32		result;
 
 	result = arg1 - arg2;
-	// elog(NOTICE, "%i - %i", arg1, arg2);
-
 
 	/*
 	 * Overflow check.	If the inputs are of the same sign then their
